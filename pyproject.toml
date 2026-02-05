@@ -1,0 +1,19 @@
+[project]
+name = "current-affairs-verification"
+version = "0.1.0"
+description = "UPSC Expert Verification Tool - Internal dashboard for verifying AI-generated current affairs content"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.3.3",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "sqlalchemy>=2.0.46",
+    "streamlit>=1.54.0",
+]
+
+[tool.uv.sources]
+
+[project.scripts]
+start = "streamlit run src/app.py"
