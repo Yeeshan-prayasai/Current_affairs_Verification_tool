@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 # Add project root to path
@@ -31,10 +31,58 @@ show_messages()
 # Service
 content_service = ContentService()
 
-# Main page content
-st.title("📋 Today's Current Affairs Review")
+# Date filter selection
 today = datetime.now().date()
-st.markdown(f"**{today.strftime('%A, %d %B %Y')}**")
+yesterday = today - timedelta(days=1)
+
+# Filter buttons in sidebar
+st.sidebar.header("Date Filter")
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.sidebar.button("Today", use_container_width=True, key="main_today"):
+        st.session_state.main_date_filter = "today"
+        st.session_state.main_custom_date = None
+        st.rerun()
+with col2:
+    if st.sidebar.button("Yesterday", use_container_width=True, key="main_yesterday"):
+        st.session_state.main_date_filter = "yesterday"
+        st.session_state.main_custom_date = None
+        st.rerun()
+
+# Date picker for custom date
+custom_date = st.sidebar.date_input(
+    "Or pick a date",
+    value=st.session_state.get("main_custom_date") or today,
+    key="main_date_picker"
+)
+
+# If date picker value changed from stored value, use it
+if custom_date != st.session_state.get("main_custom_date"):
+    st.session_state.main_custom_date = custom_date
+    st.session_state.main_date_filter = "custom"
+
+# Determine which date to show
+date_filter = st.session_state.get("main_date_filter", "today")
+if date_filter == "custom" and st.session_state.get("main_custom_date"):
+    selected_date = st.session_state.main_custom_date
+    if selected_date == today:
+        date_label = "Today's"
+    elif selected_date == yesterday:
+        date_label = "Yesterday's"
+    else:
+        date_label = f"{selected_date.strftime('%d %b')}"
+elif date_filter == "yesterday":
+    selected_date = yesterday
+    date_label = "Yesterday's"
+else:
+    selected_date = today
+    date_label = "Today's"
+
+st.sidebar.caption(f"Showing: {selected_date.strftime('%d %b %Y')}")
+
+# Main page content
+st.title(f"📋 {date_label} Current Affairs Review")
+st.markdown(f"**{selected_date.strftime('%A, %d %B %Y')}**")
 st.markdown("---")
 
 try:
@@ -42,10 +90,10 @@ try:
         theme_repo = ThemeRepository(db)
         article_repo = ArticleRepository(db)
 
-        # Get today's articles grouped by theme
+        # Get articles for selected date
         todays_articles = article_repo.get_articles(
-            start_date=today,
-            end_date=today,
+            start_date=selected_date,
+            end_date=selected_date,
             limit=100,
         )
 
@@ -54,7 +102,7 @@ try:
         all_themes_list = [{"id": t["id"], "name": t["name"]} for t in all_themes]
 
     if not todays_articles:
-        st.info("No articles found for today.")
+        st.info(f"No articles found for {selected_date.strftime('%d %b %Y')}.")
         st.markdown("---")
         st.markdown("### Quick Navigation")
         col1, col2, col3 = st.columns(3)
@@ -70,6 +118,7 @@ try:
     else:
         # Group articles by theme
         themes_dict = {}
+        theme_order = []  # Keep track of order
         for article in todays_articles:
             theme_id = article.get("theme_id")
             theme_name = article.get("theme_name") or "Uncategorized"
@@ -78,58 +127,87 @@ try:
                     "theme_id": theme_id,
                     "articles": []
                 }
+                theme_order.append(theme_name)
             themes_dict[theme_name]["articles"].append(article)
 
         st.markdown(f"### {len(todays_articles)} articles in {len(themes_dict)} themes")
 
+        # Theme navigation section - clickable buttons to jump to themes
+        st.markdown("#### Quick Navigation")
+        theme_cols = st.columns(min(len(theme_order), 4))
+        for i, tname in enumerate(theme_order):
+            col_idx = i % 4
+            with theme_cols[col_idx]:
+                article_count = len(themes_dict[tname]["articles"])
+                if st.button(f"🏷️ {tname[:25]}{'...' if len(tname) > 25 else ''} ({article_count})",
+                           key=f"nav_{i}", use_container_width=True):
+                    st.session_state.selected_theme_view = tname
+                    st.rerun()
+
+        st.markdown("---")
+
+        # Determine which theme to show
+        selected_theme_view = st.session_state.get("selected_theme_view")
+
+        # If a theme is selected, show only that theme; otherwise show all
+        if selected_theme_view and selected_theme_view in themes_dict:
+            themes_to_show = {selected_theme_view: themes_dict[selected_theme_view]}
+            if st.button("← Back to All Themes", key="back_to_all"):
+                st.session_state.selected_theme_view = None
+                st.rerun()
+        else:
+            themes_to_show = themes_dict
+
         # Display each theme with its articles
-        for theme_name, theme_data in themes_dict.items():
+        for theme_name, theme_data in themes_to_show.items():
             theme_id = theme_data["theme_id"]
             articles = theme_data["articles"]
 
-            with st.expander(f"🏷️ **{theme_name}** ({len(articles)} articles)", expanded=True):
-                # Theme editing section
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    new_theme_name = st.text_input(
-                        "Theme Name",
-                        value=theme_name if theme_name != "Uncategorized" else "",
-                        key=f"theme_name_{theme_id}",
-                        placeholder="Enter theme name..."
-                    )
-                with col2:
-                    if theme_id and new_theme_name and new_theme_name != theme_name:
-                        if st.button("Save Theme", key=f"save_theme_{theme_id}"):
-                            result = content_service.update_theme_name(UUID(str(theme_id)), new_theme_name)
-                            if result["success"]:
-                                set_success(f"Theme renamed to '{new_theme_name}'")
-                                st.rerun()
+            st.markdown(f"## 🏷️ {theme_name}")
+            st.caption(f"{len(articles)} articles")
 
-                # Merge with similar theme
-                if theme_id:
+            # Theme editing section - only show if theme exists (not Uncategorized)
+            if theme_id:
+                with st.expander("Edit Theme", expanded=False):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        new_theme_name = st.text_input(
+                            "Rename Theme",
+                            value=theme_name,
+                            key=f"theme_name_{theme_id}",
+                            label_visibility="collapsed"
+                        )
+                    with col2:
+                        if new_theme_name and new_theme_name != theme_name:
+                            if st.button("Save", key=f"save_theme_{theme_id}"):
+                                result = content_service.update_theme_name(UUID(str(theme_id)), new_theme_name)
+                                if result["success"]:
+                                    set_success(f"Theme renamed to '{new_theme_name}'")
+                                    st.session_state.selected_theme_view = new_theme_name
+                                    st.rerun()
+
+                    # Merge with similar theme
                     with get_db() as db:
                         theme_repo = ThemeRepository(db)
                         similar = theme_repo.find_similar_themes(theme_name, exclude_id=theme_id, limit=3)
                         similar_list = [{"id": s.id, "name": s.name} for s in similar]
 
                     if similar_list:
-                        st.caption("Merge with similar theme:")
-                        merge_cols = st.columns(len(similar_list) + 1)
-                        for i, sim in enumerate(similar_list):
-                            with merge_cols[i]:
-                                if st.button(f"→ {sim['name'][:20]}", key=f"merge_{theme_id}_{sim['id']}"):
-                                    result = content_service.merge_themes(UUID(str(theme_id)), sim["id"])
-                                    if result["success"]:
-                                        set_success(f"Merged {result['articles_moved']} articles!")
-                                        st.rerun()
+                        st.caption("Merge into another theme:")
+                        for sim in similar_list:
+                            if st.button(f"→ Merge into '{sim['name'][:30]}'", key=f"merge_{theme_id}_{sim['id']}"):
+                                result = content_service.merge_themes(UUID(str(theme_id)), sim["id"])
+                                if result["success"]:
+                                    set_success(f"Merged {result['articles_moved']} articles!")
+                                    st.session_state.selected_theme_view = None
+                                    st.rerun()
 
-                st.markdown("---")
+            # Display articles
+            for article in articles:
+                article_id = article["id"]
+                article_theme_id = article.get("theme_id")
 
-                # Display articles
-                for article in articles:
-                    article_id = article["id"]
-                    article_key = f"article_{article_id}"
-
+                with st.container(border=True):
                     st.markdown(f"#### 📄 {article['heading']}")
 
                     # Load full article data for editing
@@ -141,48 +219,104 @@ try:
                             article_prelims = full_article.prelims_info or ""
                             article_pointed = full_article.pointed_analysis or ""
 
-                    # Tabs for editing
+                    # Theme selector for this article
+                    theme_names_list = ["None"] + [t["name"] for t in all_themes_list]
+                    theme_ids_list = [None] + [t["id"] for t in all_themes_list]
+                    current_theme_idx = 0
+                    if article_theme_id:
+                        for i, tid in enumerate(theme_ids_list):
+                            if tid == article_theme_id:
+                                current_theme_idx = i
+                                break
+
+                    col_theme, col_btn = st.columns([3, 1])
+                    with col_theme:
+                        selected_theme_idx = st.selectbox(
+                            "Article Theme",
+                            options=range(len(theme_names_list)),
+                            format_func=lambda i: theme_names_list[i],
+                            index=current_theme_idx,
+                            key=f"article_theme_{article_id}",
+                            label_visibility="collapsed"
+                        )
+                    with col_btn:
+                        new_article_theme_id = theme_ids_list[selected_theme_idx]
+                        if new_article_theme_id != article_theme_id:
+                            if st.button("Update", key=f"update_theme_{article_id}"):
+                                result = content_service.update_article(article_id, {"theme_id": new_article_theme_id})
+                                if result["success"]:
+                                    set_success("Article theme updated!")
+                                    st.rerun()
+
+                    # Tabs for content - show preview by default, edit on button click
                     tabs = st.tabs(["Pointed Analysis", "Mains Analysis", "Prelims Info"])
+
+                    # Track edit state for each field
+                    edit_pointed_key = f"edit_pointed_{article_id}"
+                    edit_mains_key = f"edit_mains_{article_id}"
+                    edit_prelims_key = f"edit_prelims_{article_id}"
 
                     with tabs[0]:
                         st.markdown(article_pointed)
-                        pointed = st.text_area(
-                            "Edit Pointed Analysis",
-                            value=article_pointed,
-                            height=150,
-                            key=f"pointed_{article_id}",
-                            label_visibility="collapsed"
-                        )
+                        if st.button("✏️ Edit", key=f"btn_edit_pointed_{article_id}"):
+                            st.session_state[edit_pointed_key] = not st.session_state.get(edit_pointed_key, False)
+                            st.rerun()
+                        if st.session_state.get(edit_pointed_key, False):
+                            pointed = st.text_area(
+                                "Edit Pointed Analysis",
+                                value=article_pointed,
+                                height=150,
+                                key=f"pointed_{article_id}",
+                                label_visibility="collapsed"
+                            )
+                            if st.button("💾 Save", key=f"save_pointed_{article_id}"):
+                                result = content_service.update_article(article_id, {"pointed_analysis": pointed})
+                                if result["success"]:
+                                    st.session_state[edit_pointed_key] = False
+                                    set_success("Pointed Analysis saved!")
+                                    st.rerun()
 
                     with tabs[1]:
-                        mains = st.text_area(
-                            "Mains Analysis",
-                            value=article_mains,
-                            height=150,
-                            key=f"mains_{article_id}"
-                        )
+                        st.markdown(article_mains)
+                        if st.button("✏️ Edit", key=f"btn_edit_mains_{article_id}"):
+                            st.session_state[edit_mains_key] = not st.session_state.get(edit_mains_key, False)
+                            st.rerun()
+                        if st.session_state.get(edit_mains_key, False):
+                            mains = st.text_area(
+                                "Edit Mains Analysis",
+                                value=article_mains,
+                                height=150,
+                                key=f"mains_{article_id}",
+                                label_visibility="collapsed"
+                            )
+                            if st.button("💾 Save", key=f"save_mains_{article_id}"):
+                                result = content_service.update_article(article_id, {"mains_analysis": mains})
+                                if result["success"]:
+                                    st.session_state[edit_mains_key] = False
+                                    set_success("Mains Analysis saved!")
+                                    st.rerun()
 
                     with tabs[2]:
-                        prelims = st.text_area(
-                            "Prelims Info",
-                            value=article_prelims,
-                            height=150,
-                            key=f"prelims_{article_id}"
-                        )
-
-                    # Save button for article
-                    if st.button("💾 Save Article", key=f"save_{article_id}"):
-                        updates = {
-                            "pointed_analysis": pointed,
-                            "mains_analysis": mains,
-                            "prelims_info": prelims,
-                        }
-                        result = content_service.update_article(article_id, updates)
-                        if result["success"]:
-                            set_success(f"Article saved!")
+                        st.markdown(article_prelims)
+                        if st.button("✏️ Edit", key=f"btn_edit_prelims_{article_id}"):
+                            st.session_state[edit_prelims_key] = not st.session_state.get(edit_prelims_key, False)
                             st.rerun()
+                        if st.session_state.get(edit_prelims_key, False):
+                            prelims = st.text_area(
+                                "Edit Prelims Info",
+                                value=article_prelims,
+                                height=150,
+                                key=f"prelims_{article_id}",
+                                label_visibility="collapsed"
+                            )
+                            if st.button("💾 Save", key=f"save_prelims_{article_id}"):
+                                result = content_service.update_article(article_id, {"prelims_info": prelims})
+                                if result["success"]:
+                                    st.session_state[edit_prelims_key] = False
+                                    set_success("Prelims Info saved!")
+                                    st.rerun()
 
-                    st.markdown("---")
+            st.markdown("---")
 
         # Navigation to other pages
         st.markdown("### Other Pages")

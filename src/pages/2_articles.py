@@ -119,34 +119,58 @@ try:
                     )
                     new_theme_id = theme_ids[selected_theme_idx]
 
-                    # Editable content - simplified tabs
+                    # Editable content - tabs with markdown preview and collapsible edit
                     tabs = st.tabs(["Pointed Analysis", "Mains Analysis", "Prelims Info"])
 
+                    # Track edit state for each field
+                    edit_pointed_key = f"edit_pointed_{selected_id}"
+                    edit_mains_key = f"edit_mains_{selected_id}"
+                    edit_prelims_key = f"edit_prelims_{selected_id}"
+
                     with tabs[0]:
-                        st.markdown("#### Preview")
                         st.markdown(article_pointed_analysis)
-                        st.markdown("#### Edit")
-                        pointed_analysis = st.text_area("Pointed Analysis", value=article_pointed_analysis, height=200, key="pointed", label_visibility="collapsed")
+                        if st.button("✏️ Edit", key="btn_edit_pointed"):
+                            st.session_state[edit_pointed_key] = not st.session_state.get(edit_pointed_key, False)
+                            st.rerun()
+                        if st.session_state.get(edit_pointed_key, False):
+                            pointed_analysis = st.text_area("Edit Pointed Analysis", value=article_pointed_analysis, height=200, key="pointed", label_visibility="collapsed")
+                            if st.button("💾 Save Pointed", key="save_pointed"):
+                                updates = {"pointed_analysis": pointed_analysis, "theme_id": new_theme_id}
+                                result = content_service.update_article(selected_id, updates)
+                                if result["success"]:
+                                    st.session_state[edit_pointed_key] = False
+                                    set_success("Pointed Analysis saved!")
+                                    st.rerun()
 
                     with tabs[1]:
-                        mains_analysis = st.text_area("Mains Analysis", value=article_mains_analysis, height=200, key="mains")
+                        st.markdown(article_mains_analysis)
+                        if st.button("✏️ Edit", key="btn_edit_mains"):
+                            st.session_state[edit_mains_key] = not st.session_state.get(edit_mains_key, False)
+                            st.rerun()
+                        if st.session_state.get(edit_mains_key, False):
+                            mains_analysis = st.text_area("Edit Mains Analysis", value=article_mains_analysis, height=200, key="mains", label_visibility="collapsed")
+                            if st.button("💾 Save Mains", key="save_mains"):
+                                updates = {"mains_analysis": mains_analysis, "theme_id": new_theme_id}
+                                result = content_service.update_article(selected_id, updates)
+                                if result["success"]:
+                                    st.session_state[edit_mains_key] = False
+                                    set_success("Mains Analysis saved!")
+                                    st.rerun()
 
                     with tabs[2]:
-                        prelims_info = st.text_area("Prelims Info", value=article_prelims_info, height=200, key="prelims")
-
-                    # Save button
-                    st.markdown("---")
-                    if st.button("💾 Save Changes", type="primary", key="save_article"):
-                        updates = {
-                            "pointed_analysis": pointed_analysis,
-                            "mains_analysis": mains_analysis,
-                            "prelims_info": prelims_info,
-                            "theme_id": new_theme_id,
-                        }
-                        result = content_service.update_article(selected_id, updates)
-                        if result["success"]:
-                            set_success("Article saved!")
+                        st.markdown(article_prelims_info)
+                        if st.button("✏️ Edit", key="btn_edit_prelims"):
+                            st.session_state[edit_prelims_key] = not st.session_state.get(edit_prelims_key, False)
                             st.rerun()
+                        if st.session_state.get(edit_prelims_key, False):
+                            prelims_info = st.text_area("Edit Prelims Info", value=article_prelims_info, height=200, key="prelims", label_visibility="collapsed")
+                            if st.button("💾 Save Prelims", key="save_prelims"):
+                                updates = {"prelims_info": prelims_info, "theme_id": new_theme_id}
+                                result = content_service.update_article(selected_id, updates)
+                                if result["success"]:
+                                    st.session_state[edit_prelims_key] = False
+                                    set_success("Prelims Info saved!")
+                                    st.rerun()
 
                     # Keywords section
                     st.markdown("---")

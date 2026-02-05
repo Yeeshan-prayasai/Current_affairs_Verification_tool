@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -10,7 +11,7 @@ from src.utils.session_state import init_session_state, show_messages, set_succe
 from src.database.connection import get_db
 from src.database.repositories.theme_repo import ThemeRepository
 from src.services.verification_service import ContentService
-from src.components.sidebar import render_sidebar_filters, render_pagination
+from src.components.sidebar import render_pagination
 
 st.set_page_config(
     page_title=f"Themes - {settings.APP_NAME}",
@@ -25,8 +26,90 @@ st.title("🏷️ Theme Review")
 st.markdown("Edit theme names and merge duplicates")
 st.markdown("---")
 
-# Sidebar filters
-filters = render_sidebar_filters()
+# Custom sidebar for themes page with Today/Weekly/Monthly filters
+st.sidebar.header("Filter by Article Date")
+
+# Quick filter buttons
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.sidebar.button("Today", use_container_width=True, key="theme_today"):
+        st.session_state.theme_date_filter = "today"
+        st.session_state.theme_custom_date = None
+        st.session_state.current_page = 1
+        st.rerun()
+    if st.sidebar.button("This Week", use_container_width=True, key="theme_week"):
+        st.session_state.theme_date_filter = "week"
+        st.session_state.theme_custom_date = None
+        st.session_state.current_page = 1
+        st.rerun()
+with col2:
+    if st.sidebar.button("Yesterday", use_container_width=True, key="theme_yesterday"):
+        st.session_state.theme_date_filter = "yesterday"
+        st.session_state.theme_custom_date = None
+        st.session_state.current_page = 1
+        st.rerun()
+    if st.sidebar.button("This Month", use_container_width=True, key="theme_month"):
+        st.session_state.theme_date_filter = "month"
+        st.session_state.theme_custom_date = None
+        st.session_state.current_page = 1
+        st.rerun()
+
+if st.sidebar.button("Show All", use_container_width=True, key="theme_all"):
+    st.session_state.theme_date_filter = "all"
+    st.session_state.theme_custom_date = None
+    st.session_state.current_page = 1
+    st.rerun()
+
+# Date picker for custom date
+today = datetime.now().date()
+custom_date = st.sidebar.date_input(
+    "Or pick a date",
+    value=st.session_state.get("theme_custom_date") or today,
+    key="theme_date_picker"
+)
+
+# If date picker value changed from stored value, use it
+if custom_date != st.session_state.get("theme_custom_date"):
+    st.session_state.theme_custom_date = custom_date
+    st.session_state.theme_date_filter = "custom"
+    st.session_state.current_page = 1
+
+# Determine date range based on filter
+date_filter = st.session_state.get("theme_date_filter", "all")
+
+if date_filter == "custom" and st.session_state.get("theme_custom_date"):
+    start_date = st.session_state.theme_custom_date
+    end_date = st.session_state.theme_custom_date
+    st.sidebar.caption(f"Showing themes with articles from {start_date.strftime('%d %b %Y')}")
+elif date_filter == "today":
+    start_date = today
+    end_date = today
+    st.sidebar.caption(f"Showing themes with articles from today ({today.strftime('%d %b')})")
+elif date_filter == "yesterday":
+    yesterday = today - timedelta(days=1)
+    start_date = yesterday
+    end_date = yesterday
+    st.sidebar.caption(f"Showing themes with articles from yesterday ({yesterday.strftime('%d %b')})")
+elif date_filter == "week":
+    start_date = today - timedelta(days=7)
+    end_date = today
+    st.sidebar.caption(f"Showing themes with articles from last 7 days")
+elif date_filter == "month":
+    start_date = today - timedelta(days=30)
+    end_date = today
+    st.sidebar.caption(f"Showing themes with articles from last 30 days")
+else:
+    start_date = None
+    end_date = None
+    st.sidebar.caption("Showing all themes")
+
+# Search
+search = st.sidebar.text_input(
+    "Search themes",
+    value=st.session_state.get("search_query", ""),
+    placeholder="Search...",
+    key="theme_search",
+)
 
 # Service
 content_service = ContentService()
@@ -35,28 +118,39 @@ try:
     with get_db() as db:
         theme_repo = ThemeRepository(db)
 
-        # Get themes
-        themes = theme_repo.get_all_themes(
-            start_date=filters["start_date"],
-            end_date=filters["end_date"],
-            search=filters["search"],
-            limit=settings.DEFAULT_PAGE_SIZE,
-            offset=(st.session_state.current_page - 1) * settings.DEFAULT_PAGE_SIZE,
-        )
-
-        total_themes = theme_repo.get_theme_count(search=filters["search"])
+        # Get themes based on article dates
+        if start_date or end_date:
+            themes = theme_repo.get_themes_by_article_date(
+                start_date=start_date,
+                end_date=end_date,
+                search=search if search else None,
+                limit=settings.DEFAULT_PAGE_SIZE,
+                offset=(st.session_state.current_page - 1) * settings.DEFAULT_PAGE_SIZE,
+            )
+            total_themes = theme_repo.get_theme_count_by_article_date(
+                start_date=start_date,
+                end_date=end_date,
+                search=search if search else None,
+            )
+        else:
+            themes = theme_repo.get_all_themes(
+                search=search if search else None,
+                limit=settings.DEFAULT_PAGE_SIZE,
+                offset=(st.session_state.current_page - 1) * settings.DEFAULT_PAGE_SIZE,
+            )
+            total_themes = theme_repo.get_theme_count(search=search if search else None)
 
     # Pagination
     render_pagination(total_themes, settings.DEFAULT_PAGE_SIZE)
 
     if not themes:
-        st.info("No themes found.")
+        st.info("No themes found for the selected date range.")
     else:
         # Two columns layout
         col_list, col_detail = st.columns([1, 2])
 
         with col_list:
-            st.markdown("### Themes")
+            st.markdown(f"### Themes ({total_themes})")
             for theme in themes:
                 with st.container():
                     if st.button(

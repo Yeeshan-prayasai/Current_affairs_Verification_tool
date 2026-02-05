@@ -1,8 +1,8 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, Date as SQLDate
 
 from src.database.models import CurrentAffair, Theme, ArticleKeyword, Glossary
 
@@ -29,10 +29,11 @@ class ArticleRepository:
         if theme_id:
             query = query.filter(CurrentAffair.theme_id == theme_id)
 
+        # Cast DateTime to Date for proper date comparison
         if start_date:
-            query = query.filter(CurrentAffair.date >= start_date)
+            query = query.filter(cast(CurrentAffair.date, SQLDate) >= start_date)
         if end_date:
-            query = query.filter(CurrentAffair.date <= end_date)
+            query = query.filter(cast(CurrentAffair.date, SQLDate) <= end_date)
 
         if search:
             query = query.filter(CurrentAffair.heading.ilike(f"%{search}%"))
