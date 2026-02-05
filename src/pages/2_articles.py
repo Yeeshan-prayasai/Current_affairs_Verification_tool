@@ -61,7 +61,12 @@ try:
         with col_list:
             st.markdown("### Articles")
             for article in articles:
-                label = f"**{article['heading'][:50]}...**\n{article.get('theme_name', 'No theme')} | {article['date'].strftime('%Y-%m-%d') if article.get('date') else 'N/A'}"
+                # Better article display - full heading with theme below
+                heading = article['heading'] or "Untitled"
+                theme_name = article.get('theme_name') or 'No theme'
+                date_str = article['date'].strftime('%d %b') if article.get('date') else ''
+
+                label = f"📄 **{heading}**\n🏷️ {theme_name} • {date_str}"
                 if st.button(label, key=f"article_{article['id']}", use_container_width=True):
                     st.session_state.selected_article_id = article["id"]
                     st.rerun()
@@ -79,33 +84,18 @@ try:
                         # Store values we need outside the session
                         article_heading = article.heading
                         article_date = article.date
-                        article_news_paper = article.news_paper
-                        article_read_time = article.read_time
                         article_theme_id = article.theme_id
-                        article_description = article.description or ""
                         article_pointed_analysis = article.pointed_analysis or ""
                         article_mains_analysis = article.mains_analysis or ""
                         article_prelims_info = article.prelims_info or ""
-                        article_mains_subject = article.mains_subject or ""
-                        article_prelims_subject = article.prelims_subject or ""
-                        article_secondary_tag = article.secondary_tag or ""
-                        article_sub_topics = article.sub_topics or ""
                         article_current_affair_id = article.current_affair_id
 
                         # Get keywords while session is open
                         keywords = glossary_repo.get_keywords_for_article(article_current_affair_id)
 
                 if article:
-                    st.subheader(article_heading[:80] + "..." if len(article_heading or "") > 80 else article_heading)
-
-                    # Metadata
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.caption(f"Date: {article_date.strftime('%Y-%m-%d') if article_date else 'N/A'}")
-                    with col2:
-                        st.caption(f"Source: {article_news_paper or 'N/A'}")
-                    with col3:
-                        st.caption(f"Read Time: {article_read_time or 'N/A'} min")
+                    st.subheader(article_heading)
+                    st.caption(f"Date: {article_date.strftime('%Y-%m-%d') if article_date else 'N/A'}")
 
                     st.markdown("---")
 
@@ -129,42 +119,28 @@ try:
                     )
                     new_theme_id = theme_ids[selected_theme_idx]
 
-                    # Editable content
-                    tabs = st.tabs(["Description", "Pointed Analysis", "Mains Analysis", "Prelims Info", "Classification"])
+                    # Editable content - simplified tabs
+                    tabs = st.tabs(["Pointed Analysis", "Mains Analysis", "Prelims Info"])
 
                     with tabs[0]:
-                        description = st.text_area("Description", value=article_description, height=200, key="desc")
+                        st.markdown("#### Preview")
+                        st.markdown(article_pointed_analysis)
+                        st.markdown("#### Edit")
+                        pointed_analysis = st.text_area("Pointed Analysis", value=article_pointed_analysis, height=200, key="pointed", label_visibility="collapsed")
 
                     with tabs[1]:
-                        pointed_analysis = st.text_area("Pointed Analysis", value=article_pointed_analysis, height=200, key="pointed")
-
-                    with tabs[2]:
                         mains_analysis = st.text_area("Mains Analysis", value=article_mains_analysis, height=200, key="mains")
 
-                    with tabs[3]:
+                    with tabs[2]:
                         prelims_info = st.text_area("Prelims Info", value=article_prelims_info, height=200, key="prelims")
-
-                    with tabs[4]:
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            mains_subject = st.text_input("Mains Subject", value=article_mains_subject, key="mains_subj")
-                            prelims_subject = st.text_input("Prelims Subject", value=article_prelims_subject, key="prelims_subj")
-                        with col2:
-                            secondary_tag = st.text_input("Secondary Tag", value=article_secondary_tag, key="sec_tag")
-                            sub_topics = st.text_input("Sub Topics", value=article_sub_topics, key="sub_topics")
 
                     # Save button
                     st.markdown("---")
                     if st.button("💾 Save Changes", type="primary", key="save_article"):
                         updates = {
-                            "description": description,
                             "pointed_analysis": pointed_analysis,
                             "mains_analysis": mains_analysis,
                             "prelims_info": prelims_info,
-                            "mains_subject": mains_subject,
-                            "prelims_subject": prelims_subject,
-                            "secondary_tag": secondary_tag,
-                            "sub_topics": sub_topics,
                             "theme_id": new_theme_id,
                         }
                         result = content_service.update_article(selected_id, updates)

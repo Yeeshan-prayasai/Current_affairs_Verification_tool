@@ -6,14 +6,24 @@ def render_sidebar_filters():
     """Render common sidebar filters."""
     st.sidebar.header("Filters")
 
-    # Show All button to clear date filters
-    if st.sidebar.button("Show All", use_container_width=True):
-        st.session_state.show_all_dates = True
-        st.session_state.current_page = 1
-        st.rerun()
+    # Quick filter buttons
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("Today", use_container_width=True):
+            st.session_state.show_all_dates = False
+            st.session_state.today_filter = True
+            st.session_state.current_page = 1
+            st.rerun()
+    with col2:
+        if st.button("Show All", use_container_width=True):
+            st.session_state.show_all_dates = True
+            st.session_state.today_filter = False
+            st.session_state.current_page = 1
+            st.rerun()
 
-    # Check if showing all
+    # Check filter states
     show_all = st.session_state.get("show_all_dates", False)
+    today_filter = st.session_state.get("today_filter", False)
 
     # Date range
     col1, col2 = st.sidebar.columns(2)
@@ -24,21 +34,27 @@ def render_sidebar_filters():
                 "date_filter_start", datetime.now().date() - timedelta(days=30)
             ),
             key="sidebar_start_date",
-            disabled=show_all,
+            disabled=show_all or today_filter,
         )
     with col2:
         end_date = st.date_input(
             "To",
             value=st.session_state.get("date_filter_end", datetime.now().date()),
             key="sidebar_end_date",
-            disabled=show_all,
+            disabled=show_all or today_filter,
         )
 
-    # Reset button to re-enable date filters
+    # Status messages
     if show_all:
-        st.sidebar.caption("Date filter disabled (showing all)")
+        st.sidebar.caption("Showing all dates")
+    elif today_filter:
+        st.sidebar.caption(f"Showing today: {datetime.now().date().strftime('%d %b %Y')}")
+
+    # Reset button
+    if show_all or today_filter:
         if st.sidebar.button("Reset Filters", use_container_width=True):
             st.session_state.show_all_dates = False
+            st.session_state.today_filter = False
             st.session_state.current_page = 1
             st.rerun()
 
@@ -55,9 +71,21 @@ def render_sidebar_filters():
     )
     st.session_state.search_query = search
 
+    # Determine actual date filters to return
+    if show_all:
+        return_start = None
+        return_end = None
+    elif today_filter:
+        today = datetime.now().date()
+        return_start = today
+        return_end = today
+    else:
+        return_start = start_date
+        return_end = end_date
+
     return {
-        "start_date": None if show_all else start_date,
-        "end_date": None if show_all else end_date,
+        "start_date": return_start,
+        "end_date": return_end,
         "search": search if search else None,
     }
 
