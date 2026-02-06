@@ -34,52 +34,52 @@ col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.sidebar.button("Today", use_container_width=True, key="theme_today"):
         st.session_state.theme_date_filter = "today"
-        st.session_state.theme_custom_date = None
         st.session_state.current_page = 1
         st.rerun()
     if st.sidebar.button("This Week", use_container_width=True, key="theme_week"):
         st.session_state.theme_date_filter = "week"
-        st.session_state.theme_custom_date = None
         st.session_state.current_page = 1
         st.rerun()
 with col2:
     if st.sidebar.button("Yesterday", use_container_width=True, key="theme_yesterday"):
         st.session_state.theme_date_filter = "yesterday"
-        st.session_state.theme_custom_date = None
         st.session_state.current_page = 1
         st.rerun()
     if st.sidebar.button("This Month", use_container_width=True, key="theme_month"):
         st.session_state.theme_date_filter = "month"
-        st.session_state.theme_custom_date = None
         st.session_state.current_page = 1
         st.rerun()
 
 if st.sidebar.button("Show All", use_container_width=True, key="theme_all"):
     st.session_state.theme_date_filter = "all"
-    st.session_state.theme_custom_date = None
     st.session_state.current_page = 1
     st.rerun()
 
 # Date picker for custom date
 today = datetime.now().date()
+
+# Initialize custom date tracking
+if "theme_custom_date_value" not in st.session_state:
+    st.session_state.theme_custom_date_value = today
+
 custom_date = st.sidebar.date_input(
     "Or pick a date",
-    value=st.session_state.get("theme_custom_date") or today,
+    value=st.session_state.theme_custom_date_value,
     key="theme_date_picker"
 )
 
-# If date picker value changed from stored value, use it
-if custom_date != st.session_state.get("theme_custom_date"):
-    st.session_state.theme_custom_date = custom_date
+# If user changed the date picker, switch to custom mode
+if custom_date != st.session_state.theme_custom_date_value:
+    st.session_state.theme_custom_date_value = custom_date
     st.session_state.theme_date_filter = "custom"
     st.session_state.current_page = 1
 
-# Determine date range based on filter
+# Determine date range based on filter (default to "all")
 date_filter = st.session_state.get("theme_date_filter", "all")
 
-if date_filter == "custom" and st.session_state.get("theme_custom_date"):
-    start_date = st.session_state.theme_custom_date
-    end_date = st.session_state.theme_custom_date
+if date_filter == "custom":
+    start_date = st.session_state.theme_custom_date_value
+    end_date = st.session_state.theme_custom_date_value
     st.sidebar.caption(f"Showing themes with articles from {start_date.strftime('%d %b %Y')}")
 elif date_filter == "today":
     start_date = today
@@ -144,7 +144,10 @@ try:
     render_pagination(total_themes, settings.DEFAULT_PAGE_SIZE)
 
     if not themes:
-        st.info("No themes found for the selected date range.")
+        if start_date or end_date:
+            st.info("No themes found for the selected date range.")
+        else:
+            st.info("No themes found.")
     else:
         # Two columns layout
         col_list, col_detail = st.columns([1, 2])
@@ -181,6 +184,7 @@ try:
                         # Extract article data
                         article_list = [
                             {
+                                "id": a.id,
                                 "heading": a.heading,
                                 "date": a.date
                             }
@@ -210,10 +214,18 @@ try:
                     # Articles list
                     st.markdown("---")
                     st.markdown("### Articles")
-                    for article in article_list[:10]:
-                        st.markdown(f"- {article['heading'][:60]}... ({article['date'].strftime('%Y-%m-%d') if article['date'] else 'N/A'})")
-                    if len(article_list) > 10:
-                        st.caption(f"... and {len(article_list) - 10} more")
+                    for article in article_list:
+                        article_heading = article['heading'] or "Untitled"
+                        article_date = article['date'].strftime('%Y-%m-%d') if article['date'] else 'N/A'
+                        article_id = article['id']
+
+                        col_article, col_link = st.columns([5, 1])
+                        with col_article:
+                            st.markdown(f"**{article_heading}** ({article_date})")
+                        with col_link:
+                            if st.button("View →", key=f"view_article_{article_id}"):
+                                st.session_state.selected_article_id = article_id
+                                st.switch_page("pages/2_articles.py")
 
                     # Merge option
                     st.markdown("---")

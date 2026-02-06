@@ -81,6 +81,7 @@ try:
                         # Extract article data
                         article_list = [
                             {
+                                "id": a.id,
                                 "heading": a.heading,
                                 "date": a.date
                             }
@@ -91,16 +92,16 @@ try:
                     st.subheader(f"Keyword: {keyword_name}")
                     st.caption(f"Used in {len(article_list)} articles | Created: {keyword_created_at.strftime('%Y-%m-%d') if keyword_created_at else 'N/A'}")
 
-                    # Edit keyword name
-                    new_keyword_name = st.text_input("Keyword", value=keyword_name, key="edit_keyword_name")
+                    # Edit keyword name - use dynamic key based on selected_id
+                    new_keyword_name = st.text_input("Keyword", value=keyword_name, key=f"edit_keyword_name_{selected_id}")
 
-                    # Edit definition
+                    # Edit definition - use dynamic key based on selected_id
                     st.markdown("### Definition")
                     new_definition = st.text_area(
                         "Definition (~30 words recommended)",
                         value=keyword_definition,
                         height=150,
-                        key="edit_definition",
+                        key=f"edit_definition_{selected_id}",
                     )
 
                     # Word count
@@ -113,7 +114,7 @@ try:
                         st.success(f"Word count: {word_count}")
 
                     # Save button
-                    if st.button("💾 Save Changes", type="primary", key="save_definition"):
+                    if st.button("💾 Save Changes", type="primary", key=f"save_definition_{selected_id}"):
                         if new_keyword_name != keyword_name:
                             result = content_service.update_keyword(
                                 UUID(selected_id), new_keyword_name, new_definition
@@ -130,7 +131,14 @@ try:
                     st.markdown("### Articles Using This Keyword")
                     if article_list:
                         for article in article_list[:10]:
-                            st.markdown(f"- {article['heading'][:60]}... ({article['date'].strftime('%Y-%m-%d') if article['date'] else 'N/A'})")
+                            col_article, col_link = st.columns([5, 1])
+                            with col_article:
+                                date_str = article['date'].strftime('%Y-%m-%d') if article['date'] else 'N/A'
+                                st.markdown(f"**{article['heading'][:60]}{'...' if len(article['heading']) > 60 else ''}** ({date_str})")
+                            with col_link:
+                                if st.button("View →", key=f"view_article_{article['id']}_{selected_id}"):
+                                    st.session_state.selected_article_id = article['id']
+                                    st.switch_page("pages/2_articles.py")
                         if len(article_list) > 10:
                             st.caption(f"... and {len(article_list) - 10} more")
                     else:

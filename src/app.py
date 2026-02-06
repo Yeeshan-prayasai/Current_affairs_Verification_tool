@@ -12,6 +12,7 @@ from src.utils.session_state import init_session_state, show_messages, set_succe
 from src.database.connection import get_db
 from src.database.repositories.theme_repo import ThemeRepository
 from src.database.repositories.article_repo import ArticleRepository
+from src.database.repositories.question_repo import QuestionRepository
 from src.services.verification_service import ContentService
 
 # Page configuration
@@ -50,14 +51,18 @@ with col2:
         st.rerun()
 
 # Date picker for custom date
+# Initialize main_custom_date if not set
+if "main_custom_date" not in st.session_state:
+    st.session_state.main_custom_date = today
+
 custom_date = st.sidebar.date_input(
     "Or pick a date",
-    value=st.session_state.get("main_custom_date") or today,
+    value=st.session_state.main_custom_date,
     key="main_date_picker"
 )
 
-# If date picker value changed from stored value, use it
-if custom_date != st.session_state.get("main_custom_date"):
+# Only set to custom filter if user changed the date
+if custom_date != st.session_state.main_custom_date:
     st.session_state.main_custom_date = custom_date
     st.session_state.main_date_filter = "custom"
 
@@ -213,11 +218,17 @@ try:
                     # Load full article data for editing
                     with get_db() as db:
                         article_repo = ArticleRepository(db)
+                        question_repo = QuestionRepository(db)
                         full_article = article_repo.get_article_by_id(article_id)
                         if full_article:
                             article_mains = full_article.mains_analysis or ""
                             article_prelims = full_article.prelims_info or ""
                             article_pointed = full_article.pointed_analysis or ""
+                            article_current_affair_id = full_article.current_affair_id
+                            # Get questions
+                            article_questions = question_repo.get_questions_for_article(article_current_affair_id)
+                        else:
+                            article_questions = []
 
                     # Theme selector for this article
                     theme_names_list = ["None"] + [t["name"] for t in all_themes_list]
@@ -315,6 +326,66 @@ try:
                                     st.session_state[edit_prelims_key] = False
                                     set_success("Prelims Info saved!")
                                     st.rerun()
+
+                    # Helper function to extract English text
+                    def get_english_text(content):
+                        if content is None:
+                            return ""
+                        if isinstance(content, dict):
+                            if "english" in content:
+                                return str(content["english"])
+                            if "text" in content:
+                                return str(content["text"])
+                            return str(content)
+                        return str(content)
+
+                    def get_english_options(options):
+                        if options is None:
+                            return None
+                        if isinstance(options, dict):
+                            if "english" in options:
+                                return options["english"]
+                            return options
+                        return options
+
+                    # Questions section - collapsible
+                    if article_questions:
+                        with st.expander(f"📝 Questions ({len(article_questions)})", expanded=False):
+                            for i, q in enumerate(article_questions):
+                                q_type = q.get("type") or "Question"
+                                q_id = q.get("question_id")
+                                st.markdown(f"**{q_type} {i+1}**")
+
+                                # Display question (English only)
+                                question_text = get_english_text(q.get("question"))
+                                if question_text:
+                                    st.markdown(question_text)
+
+                                # Key info in a row
+                                info_parts = []
+                                if q.get("paper"):
+                                    info_parts.append(f"Paper: {q['paper']}")
+                                if q.get("subject"):
+                                    info_parts.append(f"Subject: {q['subject']}")
+                                if q.get("difficulty"):
+                                    info_parts.append(f"Difficulty: {q['difficulty']}")
+                                if info_parts:
+                                    st.caption(" | ".join(info_parts))
+
+                                # Options for MCQ (English only)
+                                options = get_english_options(q.get("options"))
+                                if options and isinstance(options, dict):
+                                    for key, val in options.items():
+                                        st.markdown(f"- **{key}**: {val}")
+
+                                # Answer
+                                if q.get("correct_option") or q.get("correct_value"):
+                                    answer = q.get('correct_option', '')
+                                    value = get_english_text(q.get('correct_value')) if q.get('correct_value') else ''
+                                    st.markdown(f"**Answer:** {answer} {value}".strip())
+
+                                if i < len(article_questions) - 1:
+                                    st.markdown("---")
 
             st.markdown("---")
 

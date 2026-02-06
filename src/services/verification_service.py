@@ -5,6 +5,7 @@ from src.database.connection import get_db
 from src.database.repositories.theme_repo import ThemeRepository
 from src.database.repositories.article_repo import ArticleRepository
 from src.database.repositories.glossary_repo import GlossaryRepository
+from src.database.repositories.question_repo import QuestionRepository
 
 
 class ContentService:
@@ -100,6 +101,16 @@ class ContentService:
                 "success": True,
                 "keyword_id": str(keyword_id),
             }
+
+    # Question Operations
+    def update_question(self, question_id: UUID, updates: Dict[str, Any]) -> dict:
+        """Update a question's fields."""
+        with get_db() as db:
+            question_repo = QuestionRepository(db)
+            question = question_repo.update_question(question_id, updates)
+            if question:
+                return {"success": True, "question_id": str(question_id)}
+            return {"success": False, "error": "Question not found"}
 
     # Dashboard Stats
     def get_stats(self) -> dict:
