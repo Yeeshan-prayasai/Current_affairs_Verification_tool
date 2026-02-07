@@ -102,10 +102,16 @@ try:
 
                         # Get timeline for the article's theme
                         theme_timeline_content = None
+                        article_theme_name = None
                         if article_theme_id:
                             timeline = timeline_repo.get_timeline_by_theme_id(article_theme_id)
                             if timeline:
                                 theme_timeline_content = timeline.timeline_content
+                            # Get theme name for display
+                            for t in all_themes:
+                                if t["id"] == article_theme_id:
+                                    article_theme_name = t["name"]
+                                    break
 
                 if article:
                     st.subheader(article_heading)
@@ -188,10 +194,15 @@ try:
 
                     with tabs[3]:
                         # Timeline Summary - fetched from theme_timelines table
+                        if article_theme_name:
+                            st.caption(f"Timeline for theme: **{article_theme_name}**")
                         if theme_timeline_content:
                             st.markdown(theme_timeline_content)
                         else:
-                            st.info("No timeline available for this theme")
+                            if article_theme_name:
+                                st.info(f"No timeline available for theme '{article_theme_name}'")
+                            else:
+                                st.info("No theme assigned to this article")
 
                     # Keywords section
                     st.markdown("---")

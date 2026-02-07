@@ -10,6 +10,7 @@ from src.config import settings
 from src.utils.session_state import init_session_state, show_messages, set_success
 from src.database.connection import get_db
 from src.database.repositories.theme_repo import ThemeRepository
+from src.database.repositories.timeline_repo import TimelineRepository
 from src.services.verification_service import ContentService
 from src.components.sidebar import render_pagination
 
@@ -198,18 +199,31 @@ try:
                             for s in similar_themes
                         ]
 
+                        # Get timeline for this theme
+                        timeline_repo = TimelineRepository(db)
+                        timeline = timeline_repo.get_timeline_by_theme_id(theme_id)
+                        theme_timeline_content = timeline.timeline_content if timeline else None
+
                 if theme_data:
                     st.subheader(f"Theme: {theme_name}")
                     st.caption(f"{len(article_list)} articles | Created: {theme_created_at.strftime('%Y-%m-%d') if theme_created_at else 'N/A'}")
 
                     # Edit name
-                    new_name = st.text_input("Edit Theme Name", value=theme_name, key="edit_theme_name")
+                    new_name = st.text_input("Edit Theme Name", value=theme_name, key=f"edit_theme_name_{selected_id}")
                     if new_name != theme_name:
                         if st.button("Save Name", key="save_theme_name"):
                             result = content_service.update_theme_name(UUID(selected_id), new_name)
                             if result["success"]:
                                 set_success("Theme name updated!")
                                 st.rerun()
+
+                    # Timeline section
+                    st.markdown("---")
+                    st.markdown("### Timeline Summary")
+                    if theme_timeline_content:
+                        st.markdown(theme_timeline_content)
+                    else:
+                        st.info("No timeline available for this theme")
 
                     # Articles list
                     st.markdown("---")
