@@ -119,6 +119,17 @@ class ArticleKeyword(Base):
     keyword_obj = relationship("Glossary", back_populates="article_links")
 
 
+class ThemeTimeline(Base):
+    __tablename__ = "theme_timelines"
+
+    theme_id = Column(PGUUID(as_uuid=True), ForeignKey("themes.id"), primary_key=True)
+    timeline_content = Column(Text)
+    last_updated = Column(DateTime)
+
+    def __repr__(self):
+        return f"<ThemeTimeline(theme_id={self.theme_id})>"
+
+
 class ArticleGeneratedQuestion(Base):
     __tablename__ = "article_generated_questions"
 

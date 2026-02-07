@@ -12,6 +12,7 @@ from src.database.repositories.article_repo import ArticleRepository
 from src.database.repositories.theme_repo import ThemeRepository
 from src.database.repositories.glossary_repo import GlossaryRepository
 from src.database.repositories.question_repo import QuestionRepository
+from src.database.repositories.timeline_repo import TimelineRepository
 from src.services.verification_service import ContentService
 from src.components.sidebar import render_sidebar_filters, render_pagination
 
@@ -80,6 +81,7 @@ try:
                     article_repo = ArticleRepository(db)
                     glossary_repo = GlossaryRepository(db)
                     question_repo = QuestionRepository(db)
+                    timeline_repo = TimelineRepository(db)
                     article = article_repo.get_article_by_id(selected_id)
 
                     if article:
@@ -97,6 +99,13 @@ try:
 
                         # Get questions while session is open
                         questions = question_repo.get_questions_for_article(article_current_affair_id)
+
+                        # Get timeline for the article's theme
+                        theme_timeline_content = None
+                        if article_theme_id:
+                            timeline = timeline_repo.get_timeline_by_theme_id(article_theme_id)
+                            if timeline:
+                                theme_timeline_content = timeline.timeline_content
 
                 if article:
                     st.subheader(article_heading)
@@ -178,43 +187,11 @@ try:
                                     st.rerun()
 
                     with tabs[3]:
-                        # Timeline Summary - Placeholder with sample data
-                        # TODO: Replace with actual article.timeline_summary when field is added to DB
-                        sample_timeline = """
-### Historical Timeline
-
----
-
-**15 March 2019** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-
----
-
-**22 August 2015** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-
----
-
-**07 January 2012** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-
----
-
-**30 November 2005** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-
----
-
-**12 June 2001** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-
----
-
-**04 September 1995** &nbsp; 🔵
-> Lorem ipsum is simply dummy text of the printing and typesetting industry. Lorem ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took.
-"""
-                        st.info("⏳ Timeline Summary field coming soon - showing placeholder")
-                        st.markdown(sample_timeline)
+                        # Timeline Summary - fetched from theme_timelines table
+                        if theme_timeline_content:
+                            st.markdown(theme_timeline_content)
+                        else:
+                            st.info("No timeline available for this theme")
 
                     # Keywords section
                     st.markdown("---")
