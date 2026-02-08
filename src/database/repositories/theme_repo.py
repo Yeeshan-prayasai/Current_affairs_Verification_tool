@@ -35,7 +35,7 @@ class ThemeRepository:
             query = query.filter(Theme.name.ilike(f"%{search}%"))
 
         results = (
-            query.order_by(Theme.created_at.desc()).offset(offset).limit(limit).all()
+            query.order_by(func.count(CurrentAffair.id).desc()).offset(offset).limit(limit).all()
         )
 
         return [
