@@ -58,14 +58,20 @@ class QuestionRepository:
 
     def get_questions_by_date(self, target_date=None, question_type: Optional[str] = None, theme_id: Optional[UUID] = None) -> List[dict]:
         """Get questions with optional date, type, and theme filters."""
+        from sqlalchemy import or_, cast, Date as SADate
         query = (
             self.db.query(ArticleGeneratedQuestion, NewsArticle.title.label("heading"), NewsTheme.name.label("theme_name"))
-            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
+            .outerjoin(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
             .outerjoin(NewsTheme, NewsTheme.id == NewsArticle.news_theme_id)
         )
 
         if target_date:
-            query = query.filter(NewsArticle.date == target_date)
+            query = query.filter(
+                or_(
+                    NewsArticle.date == target_date,
+                    cast(ArticleGeneratedQuestion.created_at, SADate) == target_date,
+                )
+            )
 
         if question_type:
             query = query.filter(ArticleGeneratedQuestion.type == question_type)
