@@ -98,7 +98,7 @@ try:
                         keywords = glossary_repo.get_keywords_for_article(article_id_uuid)
 
                         # Get questions while session is open
-                        questions = question_repo.get_questions_for_article(article_id_uuid)
+                        questions = question_repo.get_questions_for_article(article_id_uuid, learning_item_id=article.learning_item_id)
 
                         # Get timeline for the article's theme
                         theme_timeline_content = None

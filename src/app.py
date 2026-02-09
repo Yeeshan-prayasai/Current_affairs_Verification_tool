@@ -225,7 +225,7 @@ try:
                             article_prelims = full_article.prelims_info or ""
                             article_pointed = full_article.text or ""
                             # Get questions - article.id is the UUID
-                            article_questions = question_repo.get_questions_for_article(full_article.id)
+                            article_questions = question_repo.get_questions_for_article(full_article.id, learning_item_id=full_article.learning_item_id)
                         else:
                             article_questions = []
 

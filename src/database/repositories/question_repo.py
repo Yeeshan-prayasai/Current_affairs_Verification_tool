@@ -10,11 +10,15 @@ class QuestionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_questions_for_article(self, current_affair_id: UUID) -> List[dict]:
-        """Get all questions linked to an article."""
+    def get_questions_for_article(self, article_id: UUID, learning_item_id: UUID = None) -> List[dict]:
+        """Get all questions linked to an article (by article id or learning_item_id)."""
+        from sqlalchemy import or_
+        conditions = [ArticleGeneratedQuestion.current_affair_id == article_id]
+        if learning_item_id:
+            conditions.append(ArticleGeneratedQuestion.current_affair_id == learning_item_id)
         questions = (
             self.db.query(ArticleGeneratedQuestion)
-            .filter(ArticleGeneratedQuestion.current_affair_id == current_affair_id)
+            .filter(or_(*conditions))
             .order_by(ArticleGeneratedQuestion.type, ArticleGeneratedQuestion.question_number)
             .all()
         )
@@ -61,7 +65,10 @@ class QuestionRepository:
         from sqlalchemy import or_, cast, Date as SADate
         query = (
             self.db.query(ArticleGeneratedQuestion, NewsArticle.title.label("heading"), NewsTheme.name.label("theme_name"))
-            .outerjoin(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
+            .outerjoin(NewsArticle, or_(
+                NewsArticle.id == ArticleGeneratedQuestion.current_affair_id,
+                NewsArticle.learning_item_id == ArticleGeneratedQuestion.current_affair_id,
+            ))
             .outerjoin(NewsTheme, NewsTheme.id == NewsArticle.news_theme_id)
         )
 
