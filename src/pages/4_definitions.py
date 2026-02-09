@@ -82,7 +82,7 @@ try:
                         article_list = [
                             {
                                 "id": a.id,
-                                "heading": a.heading,
+                                "heading": a.title,
                                 "date": a.date
                             }
                             for a in articles
@@ -138,7 +138,7 @@ try:
                             with col_link:
                                 if st.button("View →", key=f"view_article_{article['id']}_{selected_id}"):
                                     st.session_state.selected_article_id = article['id']
-                                    st.switch_page("pages/2_articles.py")
+                                    st.switch_page("pages/3_articles.py")
                         if len(article_list) > 10:
                             st.caption(f"... and {len(article_list) - 10} more")
                     else:

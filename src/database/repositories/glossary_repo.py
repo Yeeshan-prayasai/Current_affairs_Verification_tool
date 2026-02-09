@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from src.database.models import Glossary, ArticleKeyword, CurrentAffair
+from src.database.models import Glossary, ArticleKeyword, NewsArticle
 
 
 class GlossaryRepository:
@@ -58,13 +58,13 @@ class GlossaryRepository:
             return None
 
         articles = (
-            self.db.query(CurrentAffair)
+            self.db.query(NewsArticle)
             .join(
                 ArticleKeyword,
-                ArticleKeyword.article_id == CurrentAffair.current_affair_id,
+                ArticleKeyword.article_id == NewsArticle.id,
             )
             .filter(ArticleKeyword.keyword_id == keyword_id)
-            .order_by(CurrentAffair.date.desc())
+            .order_by(NewsArticle.date.desc())
             .all()
         )
 

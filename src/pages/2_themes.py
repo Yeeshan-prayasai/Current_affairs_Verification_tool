@@ -186,7 +186,7 @@ try:
                         article_list = [
                             {
                                 "id": a.id,
-                                "heading": a.heading,
+                                "heading": a.title,
                                 "date": a.date
                             }
                             for a in articles
@@ -239,7 +239,7 @@ try:
                         with col_link:
                             if st.button("View →", key=f"view_article_{article_id}"):
                                 st.session_state.selected_article_id = article_id
-                                st.switch_page("pages/2_articles.py")
+                                st.switch_page("pages/3_articles.py")
 
                     # Merge option
                     st.markdown("---")

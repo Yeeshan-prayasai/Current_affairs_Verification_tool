@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date as SQLDate
 
-from src.database.models import CurrentAffair, Theme, ArticleKeyword, Glossary
+from src.database.models import NewsArticle, NewsTheme, ArticleKeyword, Glossary
 
 
 class ArticleRepository:
@@ -22,61 +22,49 @@ class ArticleRepository:
     ) -> List[dict]:
         """Get articles with optional filters."""
         query = self.db.query(
-            CurrentAffair,
-            Theme.name.label("theme_name"),
-        ).outerjoin(Theme, CurrentAffair.theme_id == Theme.id)
+            NewsArticle,
+            NewsTheme.name.label("theme_name"),
+        ).outerjoin(NewsTheme, NewsArticle.news_theme_id == NewsTheme.id)
 
         if theme_id:
-            query = query.filter(CurrentAffair.theme_id == theme_id)
+            query = query.filter(NewsArticle.news_theme_id == theme_id)
 
-        # Cast DateTime to Date for proper date comparison
         if start_date:
-            query = query.filter(cast(CurrentAffair.date, SQLDate) >= start_date)
+            query = query.filter(NewsArticle.date >= start_date)
         if end_date:
-            query = query.filter(cast(CurrentAffair.date, SQLDate) <= end_date)
+            query = query.filter(NewsArticle.date <= end_date)
 
         if search:
-            query = query.filter(CurrentAffair.heading.ilike(f"%{search}%"))
+            query = query.filter(NewsArticle.title.ilike(f"%{search}%"))
 
         results = (
-            query.order_by(CurrentAffair.date.desc()).offset(offset).limit(limit).all()
+            query.order_by(NewsArticle.date.desc()).offset(offset).limit(limit).all()
         )
 
         return [
             {
-                "id": r.CurrentAffair.id,
-                "current_affair_id": r.CurrentAffair.current_affair_id,
-                "heading": r.CurrentAffair.heading,
-                "description": r.CurrentAffair.description,
-                "date": r.CurrentAffair.date,
-                "theme_id": r.CurrentAffair.theme_id,
+                "id": r.NewsArticle.id,
+                "heading": r.NewsArticle.title,
+                "description": r.NewsArticle.description,
+                "date": r.NewsArticle.date,
+                "theme_id": r.NewsArticle.news_theme_id,
                 "theme_name": r.theme_name,
-                "mains_subject": r.CurrentAffair.mains_subject,
-                "prelims_subject": r.CurrentAffair.prelims_subject,
-                "news_paper": r.CurrentAffair.news_paper,
+                "source": r.NewsArticle.source,
             }
             for r in results
         ]
 
-    def get_article_by_id(self, article_id: int) -> Optional[CurrentAffair]:
-        """Get a single article by integer ID."""
-        return (
-            self.db.query(CurrentAffair).filter(CurrentAffair.id == article_id).first()
-        )
-
-    def get_article_by_uuid(self, article_uuid: UUID) -> Optional[CurrentAffair]:
+    def get_article_by_id(self, article_id: UUID) -> Optional[NewsArticle]:
         """Get a single article by UUID."""
         return (
-            self.db.query(CurrentAffair)
-            .filter(CurrentAffair.current_affair_id == article_uuid)
-            .first()
+            self.db.query(NewsArticle).filter(NewsArticle.id == article_id).first()
         )
 
     def get_article_with_keywords(self, article_uuid: UUID) -> Optional[dict]:
         """Get article with its associated keywords."""
         article = (
-            self.db.query(CurrentAffair)
-            .filter(CurrentAffair.current_affair_id == article_uuid)
+            self.db.query(NewsArticle)
+            .filter(NewsArticle.id == article_uuid)
             .first()
         )
 
@@ -93,46 +81,47 @@ class ArticleRepository:
         return {"article": article, "keywords": keywords}
 
     def update_article(
-        self, article_id: int, updates: Dict[str, Any]
-    ) -> Optional[CurrentAffair]:
+        self, article_id: UUID, updates: Dict[str, Any]
+    ) -> Optional[NewsArticle]:
         """Update article fields."""
         article = (
-            self.db.query(CurrentAffair).filter(CurrentAffair.id == article_id).first()
+            self.db.query(NewsArticle).filter(NewsArticle.id == article_id).first()
         )
         if not article:
             return None
 
-        allowed_fields = {
-            "heading",
-            "description",
-            "pointed_analysis",
-            "mains_analysis",
-            "prelims_info",
-            "mains_subject",
-            "prelims_subject",
-            "mains_topics",
-            "prelims_topics",
-            "secondary_tag",
-            "sub_topics",
-            "theme_id",
+        # Map old field names to new column names
+        field_mapping = {
+            "heading": "title",
+            "pointed_analysis": "text",
+            "mains_analysis": "mains_info",
+            "prelims_info": "prelims_info",
+            "description": "description",
+            "theme_id": "news_theme_id",
+            # Direct new field names also accepted
+            "title": "title",
+            "text": "text",
+            "mains_info": "mains_info",
+            "news_theme_id": "news_theme_id",
         }
 
         for field, value in updates.items():
-            if field in allowed_fields:
-                setattr(article, field, value)
+            mapped_field = field_mapping.get(field, field)
+            if hasattr(article, mapped_field):
+                setattr(article, mapped_field, value)
 
         self.db.flush()
         return article
 
     def reassign_theme(
-        self, article_id: int, new_theme_id: UUID
-    ) -> Optional[CurrentAffair]:
+        self, article_id: UUID, new_theme_id: UUID
+    ) -> Optional[NewsArticle]:
         """Reassign an article to a different theme."""
         article = (
-            self.db.query(CurrentAffair).filter(CurrentAffair.id == article_id).first()
+            self.db.query(NewsArticle).filter(NewsArticle.id == article_id).first()
         )
         if article:
-            article.theme_id = new_theme_id
+            article.news_theme_id = new_theme_id
             self.db.flush()
         return article
 
@@ -142,21 +131,21 @@ class ArticleRepository:
         search: Optional[str] = None,
     ) -> int:
         """Get total count of articles."""
-        query = self.db.query(func.count(CurrentAffair.id))
+        query = self.db.query(func.count(NewsArticle.id))
 
         if theme_id:
-            query = query.filter(CurrentAffair.theme_id == theme_id)
+            query = query.filter(NewsArticle.news_theme_id == theme_id)
 
         if search:
-            query = query.filter(CurrentAffair.heading.ilike(f"%{search}%"))
+            query = query.filter(NewsArticle.title.ilike(f"%{search}%"))
 
         return query.scalar() or 0
 
-    def get_articles_by_theme(self, theme_id: UUID) -> List[CurrentAffair]:
+    def get_articles_by_theme(self, theme_id: UUID) -> List[NewsArticle]:
         """Get all articles for a specific theme."""
         return (
-            self.db.query(CurrentAffair)
-            .filter(CurrentAffair.theme_id == theme_id)
-            .order_by(CurrentAffair.date.desc())
+            self.db.query(NewsArticle)
+            .filter(NewsArticle.news_theme_id == theme_id)
+            .order_by(NewsArticle.date.desc())
             .all()
         )

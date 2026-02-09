@@ -86,19 +86,19 @@ try:
 
                     if article:
                         # Store values we need outside the session
-                        article_heading = article.heading
+                        article_heading = article.title
                         article_date = article.date
-                        article_theme_id = article.theme_id
-                        article_pointed_analysis = article.pointed_analysis or ""
-                        article_mains_analysis = article.mains_analysis or ""
+                        article_theme_id = article.news_theme_id
+                        article_pointed_analysis = article.text or ""
+                        article_mains_analysis = article.mains_info or ""
                         article_prelims_info = article.prelims_info or ""
-                        article_current_affair_id = article.current_affair_id
+                        article_id_uuid = article.id
 
                         # Get keywords while session is open
-                        keywords = glossary_repo.get_keywords_for_article(article_current_affair_id)
+                        keywords = glossary_repo.get_keywords_for_article(article_id_uuid)
 
                         # Get questions while session is open
-                        questions = question_repo.get_questions_for_article(article_current_affair_id)
+                        questions = question_repo.get_questions_for_article(article_id_uuid)
 
                         # Get timeline for the article's theme
                         theme_timeline_content = None
@@ -215,7 +215,7 @@ try:
                                 st.write(f"**{kw['keyword']}**: {kw['definition'][:80] if kw.get('definition') else 'No definition'}...")
                             with col2:
                                 if st.button("Remove", key=f"rm_kw_{kw['id']}"):
-                                    content_service.remove_keyword_from_article(article_current_affair_id, kw["id"])
+                                    content_service.remove_keyword_from_article(article_id_uuid, kw["id"])
                                     st.rerun()
                     else:
                         st.info("No keywords linked to this article")

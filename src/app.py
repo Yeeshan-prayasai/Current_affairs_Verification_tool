@@ -113,13 +113,13 @@ try:
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🏷️ All Themes", use_container_width=True):
-                st.switch_page("pages/1_themes.py")
+                st.switch_page("pages/2_themes.py")
         with col2:
             if st.button("📰 All Articles", use_container_width=True):
-                st.switch_page("pages/2_articles.py")
+                st.switch_page("pages/3_articles.py")
         with col3:
             if st.button("📖 Definitions", use_container_width=True):
-                st.switch_page("pages/3_definitions.py")
+                st.switch_page("pages/4_definitions.py")
     else:
         # Group articles by theme
         themes_dict = {}
@@ -221,12 +221,11 @@ try:
                         question_repo = QuestionRepository(db)
                         full_article = article_repo.get_article_by_id(article_id)
                         if full_article:
-                            article_mains = full_article.mains_analysis or ""
+                            article_mains = full_article.mains_info or ""
                             article_prelims = full_article.prelims_info or ""
-                            article_pointed = full_article.pointed_analysis or ""
-                            article_current_affair_id = full_article.current_affair_id
-                            # Get questions
-                            article_questions = question_repo.get_questions_for_article(article_current_affair_id)
+                            article_pointed = full_article.text or ""
+                            # Get questions - article.id is the UUID
+                            article_questions = question_repo.get_questions_for_article(full_article.id)
                         else:
                             article_questions = []
 
@@ -394,13 +393,13 @@ try:
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🏷️ All Themes", use_container_width=True):
-                st.switch_page("pages/1_themes.py")
+                st.switch_page("pages/2_themes.py")
         with col2:
             if st.button("📰 All Articles", use_container_width=True):
-                st.switch_page("pages/2_articles.py")
+                st.switch_page("pages/3_articles.py")
         with col3:
             if st.button("📖 Definitions", use_container_width=True):
-                st.switch_page("pages/3_definitions.py")
+                st.switch_page("pages/4_definitions.py")
 
 except Exception as e:
     st.error(f"Error: {str(e)}")

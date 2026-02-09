@@ -40,13 +40,13 @@ class ContentService:
             }
 
     # Article Operations
-    def update_article(self, article_id: int, updates: Dict[str, Any]) -> dict:
+    def update_article(self, article_id: UUID, updates: Dict[str, Any]) -> dict:
         """Update article content."""
         with get_db() as db:
             article_repo = ArticleRepository(db)
             article = article_repo.update_article(article_id, updates)
             if article:
-                return {"success": True, "article_id": article_id}
+                return {"success": True, "article_id": str(article_id)}
             return {"success": False, "error": "Article not found"}
 
     # Keyword Operations

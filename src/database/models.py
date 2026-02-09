@@ -20,22 +20,51 @@ Base = declarative_base()
 
 
 # ============================================
-# EXISTING TABLES (mapped for ORM usage)
+# CORE TABLES
 # ============================================
 
 
-class Theme(Base):
-    __tablename__ = "themes"
+class NewsTheme(Base):
+    __tablename__ = "news_themes"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True)
-    name = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column("createdAt", DateTime(timezone=True), nullable=False)
+    updated_at = Column("updatedAt", DateTime(timezone=True), nullable=False)
+    name = Column(String, nullable=False)
+    summary = Column(Text, nullable=False)
+    is_trending = Column("isTrending", Boolean, nullable=False, default=False)
+    thumbnail_url = Column("thumbnailUrl", Text)
 
     # Relationships
-    articles = relationship("CurrentAffair", back_populates="theme")
+    articles = relationship("NewsArticle", back_populates="theme")
 
     def __repr__(self):
-        return f"<Theme(id={self.id}, name='{self.name}')>"
+        return f"<NewsTheme(id={self.id}, name='{self.name}', trending={self.is_trending})>"
+
+
+class NewsArticle(Base):
+    __tablename__ = "news_articles"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    created_at = Column("createdAt", DateTime(timezone=True), nullable=False)
+    updated_at = Column("updatedAt", DateTime(timezone=True), nullable=False)
+    date = Column(Date, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    text = Column(Text, nullable=False)  # pointed_analysis equivalent
+    prelims_info = Column("prelimsInfo", Text)
+    learning_item_id = Column("learningItemId", PGUUID(as_uuid=True), nullable=False)
+    source = Column(Text)
+    time_in_minutes = Column("timeInMinutes", Integer, nullable=False)
+    news_theme_id = Column("newsThemeId", PGUUID(as_uuid=True), ForeignKey("news_themes.id"))
+    thumbnail_url = Column("thumbnailUrl", Text)
+    mains_info = Column("mainsInfo", Text)
+
+    # Relationships
+    theme = relationship("NewsTheme", back_populates="articles")
+
+    def __repr__(self):
+        return f"<NewsArticle(id={self.id}, title='{self.title[:50] if self.title else ''}')>"
 
 
 class Glossary(Base):
@@ -53,61 +82,11 @@ class Glossary(Base):
         return f"<Glossary(id={self.id}, keyword='{self.keyword}')>"
 
 
-class CurrentAffair(Base):
-    __tablename__ = "current_affairs"
-
-    id = Column(Integer, primary_key=True)
-    current_affair_id = Column(PGUUID(as_uuid=True), unique=True)
-    date = Column(DateTime)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
-
-    # Content fields
-    paper = Column(String(255))
-    heading = Column(Text)
-    description = Column(Text)
-    source = Column(String(255))
-    published_at = Column(DateTime)
-    read_time = Column(Integer)
-
-    # Analysis fields
-    pointed_analysis = Column(Text)
-    mains_analysis = Column(Text)
-    prelims_info = Column(Text)
-
-    # Classification
-    mains_subject = Column(String(50))
-    prelims_subject = Column(String(50))
-    mains_topics = Column(JSONB)
-    prelims_topics = Column(JSONB)
-    secondary_tag = Column(String(50))
-
-    # Newspaper info
-    news_paper = Column(String(50))
-    news_paper_date = Column(Date)
-
-    # Additional metadata
-    sub_topics = Column(String(255))
-    keywords = Column(JSONB)
-    embedding = Column(JSONB)
-
-    # Foreign keys
-    theme_id = Column(PGUUID(as_uuid=True), ForeignKey("themes.id"))
-
-    # Relationships
-    theme = relationship("Theme", back_populates="articles")
-    keyword_links = relationship("ArticleKeyword", back_populates="article")
-
-    def __repr__(self):
-        return f"<CurrentAffair(id={self.id}, heading='{self.heading[:50] if self.heading else ''}...')>"
-
-
 class ArticleKeyword(Base):
     __tablename__ = "article_keywords"
 
     article_id = Column(
         PGUUID(as_uuid=True),
-        ForeignKey("current_affairs.current_affair_id"),
         primary_key=True,
     )
     keyword_id = Column(
@@ -115,14 +94,13 @@ class ArticleKeyword(Base):
     )
 
     # Relationships
-    article = relationship("CurrentAffair", back_populates="keyword_links")
     keyword_obj = relationship("Glossary", back_populates="article_links")
 
 
 class ThemeTimeline(Base):
     __tablename__ = "theme_timelines"
 
-    theme_id = Column(PGUUID(as_uuid=True), ForeignKey("themes.id"), primary_key=True)
+    theme_id = Column(PGUUID(as_uuid=True), primary_key=True)
     timeline_content = Column(Text)
     last_updated = Column(DateTime)
 
@@ -134,7 +112,7 @@ class ArticleGeneratedQuestion(Base):
     __tablename__ = "article_generated_questions"
 
     question_id = Column(PGUUID(as_uuid=True), primary_key=True)
-    current_affair_id = Column(PGUUID(as_uuid=True), ForeignKey("current_affairs.current_affair_id"))
+    current_affair_id = Column(PGUUID(as_uuid=True))
 
     # Question metadata
     paper = Column(String(100))
@@ -170,5 +148,3 @@ class ArticleGeneratedQuestion(Base):
 
     def __repr__(self):
         return f"<ArticleGeneratedQuestion(id={self.question_id}, type='{self.type}')>"
-
-
