@@ -97,8 +97,8 @@ try:
                         # Get keywords while session is open
                         keywords = glossary_repo.get_keywords_for_article(article_id_uuid)
 
-                        # Get questions while session is open
-                        questions = question_repo.get_questions_for_article(article_id_uuid, learning_item_id=article.learning_item_id)
+                        # Get MCQs linked via item_relations
+                        questions = question_repo.get_questions_for_article(article.learning_item_id)
 
                         # Get timeline for the article's theme
                         theme_timeline_content = None
@@ -224,183 +224,60 @@ try:
                     st.markdown("---")
                     st.markdown(f"### Questions ({len(questions)})")
 
-                    # Helper function to extract English text from bilingual content
                     def get_english_text(content):
-                        """Extract English text from content that may have hindi/english keys."""
                         if content is None:
                             return ""
                         if isinstance(content, dict):
-                            # Check for 'english' key first
                             if "english" in content:
                                 return str(content["english"])
-                            # Check for 'text' key
                             if "text" in content:
                                 return str(content["text"])
-                            # Return the dict as string if no known keys
                             return str(content)
                         return str(content)
 
-                    def get_english_options(options):
-                        """Extract English options from bilingual options."""
-                        if options is None:
-                            return None
-                        if isinstance(options, dict):
-                            # Check if it has 'english' key with options inside
-                            if "english" in options:
-                                return options["english"]
-                            # Otherwise return as-is
-                            return options
-                        if isinstance(options, list):
-                            # Check if list items have 'english' key
-                            result = []
-                            for opt in options:
-                                if isinstance(opt, dict) and "english" in opt:
-                                    result.append(opt["english"])
-                                else:
-                                    result.append(opt)
-                            return result
-                        return options
-
                     if questions:
-                        # Group questions by type
-                        questions_by_type = {}
-                        for q in questions:
-                            q_type = q.get("type") or "Other"
-                            if q_type not in questions_by_type:
-                                questions_by_type[q_type] = []
-                            questions_by_type[q_type].append(q)
+                        with st.expander(f"**MCQs** ({len(questions)} questions)", expanded=False):
+                            for i, q in enumerate(questions):
+                                q_id = q.get("question_id")
 
-                        for q_type, q_list in questions_by_type.items():
-                            with st.expander(f"**{q_type}** ({len(q_list)} questions)", expanded=False):
-                                for i, q in enumerate(q_list):
-                                    q_id = q.get("question_id")
-                                    edit_q_key = f"edit_q_{q_id}"
+                                st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
 
-                                    col_q, col_edit = st.columns([6, 1])
-                                    with col_q:
-                                        st.markdown(f"**Q{i+1}.**")
-                                    with col_edit:
-                                        if st.button("✏️", key=f"btn_edit_q_{q_id}"):
-                                            st.session_state[edit_q_key] = not st.session_state.get(edit_q_key, False)
-                                            st.rerun()
+                                # Metadata
+                                meta_cols = st.columns(3)
+                                with meta_cols[0]:
+                                    if q.get("question_pattern"):
+                                        st.caption(f"Pattern: {q['question_pattern']}")
+                                with meta_cols[1]:
+                                    if q.get("is_multi_select"):
+                                        st.caption("Multi-select: Yes")
+                                with meta_cols[2]:
+                                    if q.get("silly_mistake_prone"):
+                                        st.caption("Silly mistake prone")
 
-                                    # Display question content (English only)
-                                    question_text = get_english_text(q.get("question"))
-                                    if question_text:
-                                        st.markdown(question_text)
-
-                                    # Show key metadata in columns
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        if q.get("paper"):
-                                            st.caption(f"Paper: {q['paper']}")
-                                        if q.get("subject"):
-                                            st.caption(f"Subject: {q['subject']}")
-                                    with col2:
-                                        if q.get("difficulty"):
-                                            st.caption(f"Difficulty: {q['difficulty']}")
-                                        if q.get("max_score"):
-                                            st.caption(f"Max Score: {q['max_score']}")
-                                    with col3:
-                                        if q.get("word_count"):
-                                            st.caption(f"Word Count: {q['word_count']}")
-                                        if q.get("duration"):
-                                            st.caption(f"Duration: {q['duration']} min")
-
-                                    # Options for MCQ (English only)
-                                    options = get_english_options(q.get("options"))
-                                    if options:
-                                        st.markdown("**Options:**")
-                                        if isinstance(options, dict):
-                                            for key, val in options.items():
-                                                st.markdown(f"- **{key}**: {val}")
-                                        elif isinstance(options, list):
-                                            for opt in options:
-                                                if isinstance(opt, dict):
-                                                    label = opt.get('label', opt.get('key', ''))
-                                                    text = opt.get('text', opt.get('value', str(opt)))
-                                                    st.markdown(f"- **{label}**: {text}")
-                                                else:
-                                                    st.markdown(f"- {opt}")
-
-                                    # Correct answer
-                                    if q.get("correct_option") or q.get("correct_value"):
-                                        answer = q.get('correct_option', '')
-                                        value = get_english_text(q.get('correct_value')) if q.get('correct_value') else ''
-                                        st.markdown(f"**Correct Answer:** {answer} {value}".strip())
-
-                                    # Model answer in expander (English only)
-                                    model_answer = get_english_text(q.get("model_answer"))
-                                    if model_answer:
-                                        with st.expander("Model Answer", expanded=False):
-                                            st.markdown(model_answer)
-
-                                    # Explanation (English only)
-                                    explanation = get_english_text(q.get("explanation"))
-                                    if explanation:
-                                        with st.expander("Explanation", expanded=False):
-                                            st.markdown(explanation)
-
-                                    # Topics
-                                    if q.get("topics"):
-                                        topics = q["topics"]
-                                        if isinstance(topics, list):
-                                            topics_str = ", ".join(str(t) for t in topics)
+                                # Options
+                                options = q.get("options")
+                                if options and isinstance(options, list):
+                                    st.markdown("**Options:**")
+                                    for opt in options:
+                                        if isinstance(opt, dict):
+                                            opt_id = opt.get('id', '')
+                                            opt_text = opt.get('text', opt.get('value', str(opt)))
+                                            is_correct = str(opt_id) in [str(c) for c in (q.get("correct_option_ids") or [])]
+                                            marker = " ✓" if is_correct else ""
+                                            st.markdown(f"- {opt_text}{marker}")
                                         else:
-                                            topics_str = str(topics)
-                                        st.caption(f"Topics: {topics_str}")
+                                            st.markdown(f"- {opt}")
 
-                                    # Hints (English only)
-                                    if q.get("hints"):
-                                        hints = q["hints"]
-                                        with st.expander("Hints", expanded=False):
-                                            if isinstance(hints, list):
-                                                for hint in hints:
-                                                    hint_text = get_english_text(hint)
-                                                    st.markdown(f"- {hint_text}")
-                                            else:
-                                                st.markdown(get_english_text(hints))
+                                # Explanation
+                                explanation = q.get("explanation")
+                                if explanation:
+                                    with st.expander("Explanation", expanded=False):
+                                        st.markdown(get_english_text(explanation))
 
-                                    # Edit mode
-                                    if st.session_state.get(edit_q_key, False):
-                                        st.markdown("---")
-                                        st.markdown("**Edit Question:**")
-
-                                        # Editable fields
-                                        new_correct_option = st.text_input(
-                                            "Correct Option",
-                                            value=q.get("correct_option") or "",
-                                            key=f"q_correct_opt_{q_id}"
-                                        )
-                                        new_difficulty = st.selectbox(
-                                            "Difficulty",
-                                            options=["easy", "medium", "hard"],
-                                            index=["easy", "medium", "hard"].index(q.get("difficulty")) if q.get("difficulty") in ["easy", "medium", "hard"] else 1,
-                                            key=f"q_difficulty_{q_id}"
-                                        )
-                                        new_status = st.selectbox(
-                                            "Status",
-                                            options=["draft", "review", "approved", "rejected"],
-                                            index=["draft", "review", "approved", "rejected"].index(q.get("status")) if q.get("status") in ["draft", "review", "approved", "rejected"] else 0,
-                                            key=f"q_status_{q_id}"
-                                        )
-
-                                        if st.button("💾 Save Question", key=f"save_q_{q_id}"):
-                                            updates = {
-                                                "correct_option": new_correct_option,
-                                                "difficulty": new_difficulty,
-                                                "status": new_status,
-                                            }
-                                            result = content_service.update_question(q_id, updates)
-                                            if result["success"]:
-                                                st.session_state[edit_q_key] = False
-                                                set_success("Question updated!")
-                                                st.rerun()
-
-                                    if i < len(q_list) - 1:
-                                        st.markdown("---")
+                                if i < len(questions) - 1:
+                                    st.markdown("---")
                     else:
-                        st.info("No questions linked to this article")
+                        st.info("No MCQs linked to this article")
             else:
                 st.info("👈 Select an article from the list to edit")
 

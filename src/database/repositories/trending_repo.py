@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from src.database.models import NewsTheme, NewsArticle, ArticleGeneratedQuestion
+from src.database.models import NewsTheme, NewsArticle, MCQ, ItemRelation
 
 
 class TrendingRepository:
@@ -86,34 +86,27 @@ class TrendingRepository:
         ]
 
     def get_questions_for_theme(self, theme_id: UUID) -> List[dict]:
-        """Get all questions for articles belonging to a theme."""
+        """Get all MCQs for articles belonging to a theme via item_relations."""
         results = (
-            self.db.query(ArticleGeneratedQuestion, NewsArticle.title)
-            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
+            self.db.query(MCQ, NewsArticle.title)
+            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
+            .join(NewsArticle, NewsArticle.learning_item_id == ItemRelation.source_item_id)
             .filter(NewsArticle.news_theme_id == theme_id)
-            .order_by(ArticleGeneratedQuestion.type, ArticleGeneratedQuestion.question_number)
+            .order_by(MCQ.question_pattern, MCQ.created_at)
             .all()
         )
 
         return [
             {
-                "question_id": q.question_id,
-                "current_affair_id": q.current_affair_id,
+                "question_id": q.id,
                 "article_title": title,
-                "paper": q.paper,
-                "subject": q.subject,
-                "max_score": q.max_score,
-                "word_count": q.word_count,
-                "topics": q.topics,
-                "question": q.question,
-                "model_answer": q.model_answer,
-                "explanation": q.explanation,
-                "difficulty": q.difficulty,
-                "correct_option": q.correct_option,
-                "correct_value": q.correct_value,
+                "question_text": q.question_text,
                 "options": q.options,
-                "status": q.status,
-                "type": q.type,
+                "correct_option_ids": q.correct_option_ids,
+                "is_multi_select": q.is_multi_select,
+                "explanation": q.explanation,
+                "question_pattern": q.question_pattern,
+                "silly_mistake_prone": q.silly_mistake_prone,
             }
             for q, title in results
         ]

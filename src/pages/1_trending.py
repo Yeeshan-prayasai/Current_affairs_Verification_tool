@@ -121,24 +121,6 @@ def get_english_text(content):
     return str(content)
 
 
-def get_english_options(options):
-    if options is None:
-        return None
-    if isinstance(options, dict):
-        if "english" in options:
-            return options["english"]
-        return options
-    if isinstance(options, list):
-        result = []
-        for opt in options:
-            if isinstance(opt, dict) and "english" in opt:
-                result.append(opt["english"])
-            else:
-                result.append(opt)
-        return result
-    return options
-
-
 def toggle_trending(theme_id_str):
     if theme_id_str in st.session_state.selected_trending:
         st.session_state.selected_trending.discard(theme_id_str)
@@ -262,67 +244,48 @@ try:
                     if not questions:
                         st.info("No questions found for this theme")
                     else:
-                        # Group by type
-                        questions_by_type = {}
+                        # Group by question_pattern
+                        questions_by_pattern = {}
                         for q in questions:
-                            q_type = q.get("type") or "Other"
-                            if q_type not in questions_by_type:
-                                questions_by_type[q_type] = []
-                            questions_by_type[q_type].append(q)
+                            pattern = q.get("question_pattern") or "Other"
+                            if pattern not in questions_by_pattern:
+                                questions_by_pattern[pattern] = []
+                            questions_by_pattern[pattern].append(q)
 
-                        for q_type, q_list in questions_by_type.items():
-                            with st.expander(f"**{q_type}** ({len(q_list)} questions)", expanded=True):
+                        for pattern, q_list in questions_by_pattern.items():
+                            with st.expander(f"**{pattern}** ({len(q_list)} questions)", expanded=True):
                                 for i, q in enumerate(q_list):
-                                    question_text = get_english_text(q.get("question"))
-
                                     st.caption(f"From: {q.get('article_title', 'Unknown')}")
-
-                                    if question_text:
-                                        st.markdown(f"**Q{i+1}.** {question_text}")
+                                    st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
 
                                     # Metadata
-                                    meta_cols = st.columns(4)
+                                    meta_cols = st.columns(3)
                                     with meta_cols[0]:
-                                        if q.get("subject"):
-                                            st.caption(f"Subject: {q['subject']}")
+                                        if q.get("question_pattern"):
+                                            st.caption(f"Pattern: {q['question_pattern']}")
                                     with meta_cols[1]:
-                                        if q.get("difficulty"):
-                                            st.caption(f"Difficulty: {q['difficulty']}")
+                                        if q.get("is_multi_select"):
+                                            st.caption("Multi-select: Yes")
                                     with meta_cols[2]:
-                                        if q.get("max_score"):
-                                            st.caption(f"Score: {q['max_score']}")
-                                    with meta_cols[3]:
-                                        if q.get("paper"):
-                                            st.caption(f"Paper: {q['paper']}")
+                                        if q.get("silly_mistake_prone"):
+                                            st.caption("Silly mistake prone")
 
-                                    # Options
-                                    options = get_english_options(q.get("options"))
-                                    if options:
-                                        with st.expander("Options", expanded=False):
-                                            if isinstance(options, dict):
-                                                for key, val in options.items():
-                                                    st.markdown(f"- **{key}**: {val}")
-                                            elif isinstance(options, list):
-                                                for opt in options:
-                                                    if isinstance(opt, dict):
-                                                        label = opt.get('label', opt.get('key', ''))
-                                                        text = opt.get('text', opt.get('value', str(opt)))
-                                                        st.markdown(f"- **{label}**: {text}")
-                                                    else:
-                                                        st.markdown(f"- {opt}")
+                                    # Options with correct answer markers
+                                    options = q.get("options")
+                                    if options and isinstance(options, list):
+                                        for opt in options:
+                                            if isinstance(opt, dict):
+                                                opt_id = opt.get('id', '')
+                                                opt_text = opt.get('text', opt.get('value', str(opt)))
+                                                is_correct = str(opt_id) in [str(c) for c in (q.get("correct_option_ids") or [])]
+                                                marker = " ✓" if is_correct else ""
+                                                st.markdown(f"- {opt_text}{marker}")
 
-                                    # Answer
-                                    if q.get("correct_option") or q.get("correct_value"):
-                                        answer = q.get('correct_option', '')
-                                        value = get_english_text(q.get('correct_value')) if q.get('correct_value') else ''
-                                        with st.expander("Answer", expanded=False):
-                                            st.markdown(f"**Correct Answer:** {answer} {value}".strip())
-
-                                    # Model answer
-                                    model_answer = get_english_text(q.get("model_answer"))
-                                    if model_answer:
-                                        with st.expander("Model Answer", expanded=False):
-                                            st.markdown(model_answer)
+                                    # Explanation
+                                    explanation = q.get("explanation")
+                                    if explanation:
+                                        with st.expander("Explanation", expanded=False):
+                                            st.markdown(get_english_text(explanation))
 
                                     if i < len(q_list) - 1:
                                         st.markdown("---")

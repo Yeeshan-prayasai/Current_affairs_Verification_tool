@@ -11,8 +11,9 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     CheckConstraint,
+    Enum,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB, ARRAY
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -73,7 +74,8 @@ class Glossary(Base):
     id = Column(PGUUID(as_uuid=True), primary_key=True)
     keyword = Column(String(255), nullable=False)
     definition = Column(Text)
-    created_at = Column(DateTime, default=func.now())
+    created_at = Column("createdAt", DateTime, default=func.now())
+    updated_at = Column("updatedAt", DateTime(timezone=True))
 
     # Relationships
     article_links = relationship("ArticleKeyword", back_populates="keyword_obj")
@@ -92,6 +94,9 @@ class ArticleKeyword(Base):
     keyword_id = Column(
         PGUUID(as_uuid=True), ForeignKey("glossary.id"), primary_key=True
     )
+    id = Column(PGUUID(as_uuid=True))
+    created_at = Column("createdAt", DateTime(timezone=True))
+    updated_at = Column("updatedAt", DateTime(timezone=True))
 
     # Relationships
     keyword_obj = relationship("Glossary", back_populates="article_links")
@@ -106,6 +111,39 @@ class ThemeTimeline(Base):
 
     def __repr__(self):
         return f"<ThemeTimeline(theme_id={self.theme_id})>"
+
+
+class ItemRelation(Base):
+    __tablename__ = "item_relations"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    created_at = Column("createdAt", DateTime(timezone=True), nullable=False)
+    updated_at = Column("updatedAt", DateTime(timezone=True), nullable=False)
+    relation_type = Column("relationType", String, nullable=False)
+    source_item_id = Column("sourceItemId", PGUUID(as_uuid=True), nullable=False)
+    target_item_id = Column("targetItemId", PGUUID(as_uuid=True), nullable=False)
+
+    def __repr__(self):
+        return f"<ItemRelation(source={self.source_item_id}, target={self.target_item_id}, type={self.relation_type})>"
+
+
+class MCQ(Base):
+    __tablename__ = "mcqs"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    created_at = Column("createdAt", DateTime(timezone=True), nullable=False)
+    updated_at = Column("updatedAt", DateTime(timezone=True), nullable=False)
+    question_text = Column("questionText", Text)
+    options = Column(JSONB)
+    correct_option_ids = Column("correctOptionIds", ARRAY(PGUUID(as_uuid=True)))
+    is_multi_select = Column("isMultiSelect", Boolean, default=False)
+    learning_item_id = Column("learningItemId", PGUUID(as_uuid=True), nullable=False)
+    explanation = Column(JSONB)
+    silly_mistake_prone = Column(Boolean, default=False)
+    question_pattern = Column(String(255))
+
+    def __repr__(self):
+        return f"<MCQ(id={self.id}, pattern='{self.question_pattern}')>"
 
 
 class ArticleGeneratedQuestion(Base):

@@ -224,8 +224,8 @@ try:
                             article_mains = full_article.mains_info or ""
                             article_prelims = full_article.prelims_info or ""
                             article_pointed = full_article.text or ""
-                            # Get questions - article.id is the UUID
-                            article_questions = question_repo.get_questions_for_article(full_article.id, learning_item_id=full_article.learning_item_id)
+                            # Get MCQs linked via item_relations
+                            article_questions = question_repo.get_questions_for_article(full_article.learning_item_id)
                         else:
                             article_questions = []
 
@@ -338,50 +338,28 @@ try:
                             return str(content)
                         return str(content)
 
-                    def get_english_options(options):
-                        if options is None:
-                            return None
-                        if isinstance(options, dict):
-                            if "english" in options:
-                                return options["english"]
-                            return options
-                        return options
-
-                    # Questions section - collapsible
+                    # MCQs section - collapsible
                     if article_questions:
-                        with st.expander(f"📝 Questions ({len(article_questions)})", expanded=False):
+                        with st.expander(f"📝 MCQs ({len(article_questions)})", expanded=False):
                             for i, q in enumerate(article_questions):
-                                q_type = q.get("type") or "Question"
-                                q_id = q.get("question_id")
-                                st.markdown(f"**{q_type} {i+1}**")
+                                st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
 
-                                # Display question (English only)
-                                question_text = get_english_text(q.get("question"))
-                                if question_text:
-                                    st.markdown(question_text)
+                                # Options
+                                options = q.get("options")
+                                if options and isinstance(options, list):
+                                    for opt in options:
+                                        if isinstance(opt, dict):
+                                            opt_id = opt.get('id', '')
+                                            opt_text = opt.get('text', opt.get('value', str(opt)))
+                                            is_correct = str(opt_id) in [str(c) for c in (q.get("correct_option_ids") or [])]
+                                            marker = " ✓" if is_correct else ""
+                                            st.markdown(f"- {opt_text}{marker}")
 
-                                # Key info in a row
-                                info_parts = []
-                                if q.get("paper"):
-                                    info_parts.append(f"Paper: {q['paper']}")
-                                if q.get("subject"):
-                                    info_parts.append(f"Subject: {q['subject']}")
-                                if q.get("difficulty"):
-                                    info_parts.append(f"Difficulty: {q['difficulty']}")
-                                if info_parts:
-                                    st.caption(" | ".join(info_parts))
-
-                                # Options for MCQ (English only)
-                                options = get_english_options(q.get("options"))
-                                if options and isinstance(options, dict):
-                                    for key, val in options.items():
-                                        st.markdown(f"- **{key}**: {val}")
-
-                                # Answer
-                                if q.get("correct_option") or q.get("correct_value"):
-                                    answer = q.get('correct_option', '')
-                                    value = get_english_text(q.get('correct_value')) if q.get('correct_value') else ''
-                                    st.markdown(f"**Answer:** {answer} {value}".strip())
+                                # Explanation
+                                explanation = q.get("explanation")
+                                if explanation:
+                                    with st.expander("Explanation", expanded=False):
+                                        st.markdown(get_english_text(explanation))
 
                                 if i < len(article_questions) - 1:
                                     st.markdown("---")
