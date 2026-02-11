@@ -10,6 +10,7 @@ from src.config import settings
 from src.utils.session_state import init_session_state, show_messages, set_success
 from src.database.connection import get_db
 from src.database.repositories.trending_repo import TrendingRepository
+from src.database.repositories.question_repo import QuestionRepository
 
 st.set_page_config(
     page_title=f"Trending - {settings.APP_NAME}",
@@ -107,6 +108,16 @@ if "selected_trending" not in st.session_state:
 if "trending_detail_theme" not in st.session_state:
     st.session_state.trending_detail_theme = None
 
+# Initialize selected daily questions - pre-load existing daily selections
+if "selected_daily_questions" not in st.session_state:
+    st.session_state.selected_daily_questions = set()
+    try:
+        with get_db() as db:
+            question_repo = QuestionRepository(db)
+            st.session_state.selected_daily_questions = question_repo.get_daily_selected_ids()
+    except Exception:
+        st.session_state.selected_daily_questions = set()
+
 
 # Helper functions
 def get_english_text(content):
@@ -126,6 +137,13 @@ def toggle_trending(theme_id_str):
         st.session_state.selected_trending.discard(theme_id_str)
     else:
         st.session_state.selected_trending.add(theme_id_str)
+
+
+def toggle_daily_question(q_id):
+    if q_id in st.session_state.selected_daily_questions:
+        st.session_state.selected_daily_questions.discard(q_id)
+    else:
+        st.session_state.selected_daily_questions.add(q_id)
 
 
 try:
@@ -244,6 +262,38 @@ try:
                     if not questions:
                         st.info("No questions found for this theme")
                     else:
+                        # Daily question selection counter and buttons
+                        dq_selected = st.session_state.selected_daily_questions
+                        num_dq = len(dq_selected)
+
+                        if num_dq == 0:
+                            st.info(f"**{num_dq}/10 daily questions selected** - Select up to 10")
+                        elif num_dq <= 10:
+                            st.success(f"**{num_dq}/10 daily questions selected** - Ready to save!")
+                        else:
+                            st.warning(f"**{num_dq}/10 daily questions selected** - Please deselect {num_dq - 10} question(s)")
+
+                        col_dq_save, col_dq_clear = st.columns([1, 1])
+                        with col_dq_save:
+                            if st.button(
+                                "Save Daily Questions",
+                                disabled=num_dq == 0 or num_dq > 10,
+                                use_container_width=True,
+                                type="primary",
+                                key="save_daily_q",
+                            ):
+                                with get_db() as db:
+                                    question_repo = QuestionRepository(db)
+                                    question_repo.save_daily_selected(
+                                        [UUID(qid) for qid in dq_selected]
+                                    )
+                                set_success(f"{num_dq} daily questions saved!")
+                                st.rerun()
+                        with col_dq_clear:
+                            if st.button("Clear Selection", use_container_width=True, key="clear_daily_q"):
+                                st.session_state.selected_daily_questions = set()
+                                st.rerun()
+
                         # Group by question_pattern
                         questions_by_pattern = {}
                         for q in questions:
@@ -255,8 +305,22 @@ try:
                         for pattern, q_list in questions_by_pattern.items():
                             with st.expander(f"**{pattern}** ({len(q_list)} questions)", expanded=True):
                                 for i, q in enumerate(q_list):
-                                    st.caption(f"From: {q.get('article_title', 'Unknown')}")
-                                    st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
+                                    q_id = str(q["question_id"])
+                                    is_dq_selected = q_id in dq_selected
+
+                                    col_qcheck, col_qtext = st.columns([0.5, 9.5])
+                                    with col_qcheck:
+                                        st.checkbox(
+                                            "sel",
+                                            value=is_dq_selected,
+                                            key=f"dq_sel_{q_id}",
+                                            on_change=toggle_daily_question,
+                                            args=(q_id,),
+                                            label_visibility="collapsed",
+                                        )
+                                    with col_qtext:
+                                        st.caption(f"From: {q.get('article_title', 'Unknown')}")
+                                        st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
 
                                     # Metadata
                                     meta_cols = st.columns(3)

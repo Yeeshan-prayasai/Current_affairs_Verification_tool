@@ -113,6 +113,19 @@ class ThemeTimeline(Base):
         return f"<ThemeTimeline(theme_id={self.theme_id})>"
 
 
+class LearningItem(Base):
+    __tablename__ = "learning_items"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    created_at = Column("createdAt", DateTime(timezone=True), nullable=False)
+    updated_at = Column("updatedAt", DateTime(timezone=True), nullable=False)
+    type = Column(String, nullable=False)
+    purpose = Column(String)
+
+    def __repr__(self):
+        return f"<LearningItem(id={self.id}, type='{self.type}', purpose='{self.purpose}')>"
+
+
 class ItemRelation(Base):
     __tablename__ = "item_relations"
 

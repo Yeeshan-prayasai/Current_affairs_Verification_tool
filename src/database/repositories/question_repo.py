@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from src.database.models import MCQ, ItemRelation, NewsArticle, NewsTheme
+from src.database.models import MCQ, ItemRelation, NewsArticle, NewsTheme, LearningItem
 
 
 class QuestionRepository:
@@ -100,3 +100,47 @@ class QuestionRepository:
                     setattr(question, key, value)
             self.db.flush()
         return question
+
+    def save_daily_selected(self, mcq_ids: List[UUID]) -> int:
+        """Mark 10 selected MCQs as 'daily-selected' and reset any previous daily selections.
+
+        Only touches learning_items with purpose = 'article-generated-questions'
+        or purpose = 'daily-selected'. Never touches NULL purpose rows.
+        """
+        # Get learning_item_ids for the selected MCQs
+        selected_li_ids = (
+            self.db.query(MCQ.learning_item_id)
+            .filter(MCQ.id.in_(mcq_ids))
+            .all()
+        )
+        selected_li_ids = [row[0] for row in selected_li_ids]
+
+        # Reset all current 'daily-selected' back to 'article-generated-questions'
+        self.db.query(LearningItem).filter(
+            LearningItem.purpose == "daily-selected"
+        ).update(
+            {"purpose": "article-generated-questions"},
+            synchronize_session="fetch",
+        )
+
+        # Mark the selected ones as 'daily-selected'
+        if selected_li_ids:
+            self.db.query(LearningItem).filter(
+                LearningItem.id.in_(selected_li_ids),
+                LearningItem.purpose == "article-generated-questions",
+            ).update(
+                {"purpose": "daily-selected"},
+                synchronize_session="fetch",
+            )
+
+        return len(selected_li_ids)
+
+    def get_daily_selected_ids(self) -> set:
+        """Get MCQ IDs that are currently marked as daily-selected."""
+        results = (
+            self.db.query(MCQ.id)
+            .join(LearningItem, LearningItem.id == MCQ.learning_item_id)
+            .filter(LearningItem.purpose == "daily-selected")
+            .all()
+        )
+        return {str(row[0]) for row in results}

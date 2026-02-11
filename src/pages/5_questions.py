@@ -62,9 +62,15 @@ type_filter = st.sidebar.selectbox(
     key="q_type_filter"
 )
 
-# Initialize selected questions in session state
+# Initialize selected questions in session state - pre-load existing daily selections
 if "selected_questions" not in st.session_state:
     st.session_state.selected_questions = set()
+    try:
+        with get_db() as db:
+            question_repo = QuestionRepository(db)
+            st.session_state.selected_questions = question_repo.get_daily_selected_ids()
+    except Exception:
+        st.session_state.selected_questions = set()
 
 # Service
 content_service = ContentService()
@@ -160,7 +166,13 @@ try:
                 use_container_width=True,
                 type="primary",
             ):
-                st.warning("Save logic not yet implemented. Please implement the save function.")
+                with get_db() as db:
+                    question_repo = QuestionRepository(db)
+                    question_repo.save_daily_selected(
+                        [UUID(qid) for qid in selected]
+                    )
+                set_success("Daily questions saved!")
+                st.rerun()
         with col_clear:
             if st.button("Clear Selection", use_container_width=True):
                 st.session_state.selected_questions = set()

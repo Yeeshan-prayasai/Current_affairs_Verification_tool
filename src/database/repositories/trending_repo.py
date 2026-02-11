@@ -104,6 +104,7 @@ class TrendingRepository:
                 "options": q.options,
                 "correct_option_ids": q.correct_option_ids,
                 "is_multi_select": q.is_multi_select,
+                "learning_item_id": q.learning_item_id,
                 "explanation": q.explanation,
                 "question_pattern": q.question_pattern,
                 "silly_mistake_prone": q.silly_mistake_prone,
