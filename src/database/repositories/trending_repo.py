@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from src.database.models import NewsTheme, NewsArticle, MCQ, ItemRelation, ArticleGeneratedQuestion
+from src.database.models import NewsTheme, NewsArticle, MCQ, ItemRelation, LearningItem
 
 
 class TrendingRepository:
@@ -86,14 +86,11 @@ class TrendingRepository:
         ]
 
     def get_questions_for_theme(self, theme_id: UUID) -> List[dict]:
-        """Get all MCQs for articles belonging to a theme via article_generated_questions."""
+        """Get all MCQs for articles belonging to a theme via item_relations."""
         results = (
             self.db.query(MCQ, NewsArticle.title)
-            .join(
-                ArticleGeneratedQuestion,
-                MCQ.question_text == ArticleGeneratedQuestion.question["english"].as_string(),
-            )
-            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
+            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
+            .join(NewsArticle, NewsArticle.learning_item_id == ItemRelation.source_item_id)
             .filter(NewsArticle.news_theme_id == theme_id)
             .order_by(MCQ.question_pattern, MCQ.created_at)
             .all()
@@ -119,10 +116,54 @@ class TrendingRepository:
         """Set selected themes as trending and unset the rest."""
         # Unset all
         self.db.query(NewsTheme).filter(NewsTheme.is_trending == True).update(
-            {"isTrending": False}, synchronize_session="fetch"
+            {NewsTheme.is_trending: False}, synchronize_session="fetch"
         )
         # Set selected
         if trending_theme_ids:
             self.db.query(NewsTheme).filter(NewsTheme.id.in_(trending_theme_ids)).update(
-                {"isTrending": True}, synchronize_session="fetch"
+                {NewsTheme.is_trending: True}, synchronize_session="fetch"
             )
+
+    def auto_select_daily_questions(self, target_date: date) -> int:
+        """Mark all of today's MCQs as daily-selected, reset previous ones.
+
+        1. Reset all current 'daily-selected' back to 'article-generated-questions'
+        2. Find all MCQs for articles on target_date (any theme)
+        3. Mark those as 'daily-selected'
+
+        Never touches NULL-purpose or daily-challenges learning_items.
+        """
+        # Step 1: Reset previous daily-selected
+        self.db.query(LearningItem).filter(
+            LearningItem.purpose == "daily-selected"
+        ).update(
+            {"purpose": "article-generated-questions"},
+            synchronize_session="fetch",
+        )
+
+        # Step 2: Find today's MCQ learning_item_ids
+        today_li_ids = (
+            self.db.query(MCQ.learning_item_id)
+            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
+            .join(NewsArticle, NewsArticle.learning_item_id == ItemRelation.source_item_id)
+            .join(LearningItem, LearningItem.id == MCQ.learning_item_id)
+            .filter(
+                NewsArticle.date == target_date,
+                LearningItem.purpose == "article-generated-questions",
+            )
+            .distinct()
+            .all()
+        )
+        li_ids = [row[0] for row in today_li_ids]
+
+        # Step 3: Mark as daily-selected
+        if li_ids:
+            self.db.query(LearningItem).filter(
+                LearningItem.id.in_(li_ids),
+                LearningItem.purpose == "article-generated-questions",
+            ).update(
+                {"purpose": "daily-selected"},
+                synchronize_session="fetch",
+            )
+
+        return len(li_ids)

@@ -184,7 +184,8 @@ try:
                 trending_repo.save_trending_themes(
                     [UUID(tid) for tid in selected]
                 )
-            set_success("Trending themes saved!")
+                num_daily = trending_repo.auto_select_daily_questions(today)
+            set_success(f"Trending themes saved! {num_daily} questions marked as daily-selected.")
             st.rerun()
     with col_clear:
         if st.button("Clear Selection", use_container_width=True):

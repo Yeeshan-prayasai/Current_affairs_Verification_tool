@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from src.database.models import MCQ, ItemRelation, NewsArticle, NewsTheme, LearningItem, ArticleGeneratedQuestion
+from src.database.models import MCQ, ItemRelation, NewsArticle, NewsTheme, LearningItem
 
 
 class QuestionRepository:
@@ -11,19 +11,15 @@ class QuestionRepository:
         self.db = db
 
     def get_questions_for_article(self, learning_item_id: UUID) -> List[dict]:
-        """Get all MCQs linked to an article via article_generated_questions.
+        """Get all MCQs linked to an article via item_relations.
 
-        Join path: news_articles.id = agq.current_affair_id
-                   agq.question->>'english' = mcqs.questionText
+        Join path: MCQ.learningItemId = ItemRelation.targetItemId
+                   ItemRelation.sourceItemId = article's learningItemId
         """
         questions = (
             self.db.query(MCQ)
-            .join(
-                ArticleGeneratedQuestion,
-                MCQ.question_text == ArticleGeneratedQuestion.question["english"].as_string(),
-            )
-            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
-            .filter(NewsArticle.learning_item_id == learning_item_id)
+            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
+            .filter(ItemRelation.source_item_id == learning_item_id)
             .order_by(MCQ.question_pattern, MCQ.created_at)
             .all()
         )
@@ -55,15 +51,12 @@ class QuestionRepository:
     def get_questions_by_date(self, target_date=None, question_type: Optional[str] = None, theme_id: Optional[UUID] = None) -> List[dict]:
         """Get MCQs with optional date, type, and theme filters.
 
-        Join path: mcqs -> article_generated_questions -> news_articles -> news_themes
+        Join path: mcqs -> item_relations -> news_articles -> news_themes
         """
         query = (
             self.db.query(MCQ, NewsArticle.title.label("heading"), NewsTheme.name.label("theme_name"))
-            .join(
-                ArticleGeneratedQuestion,
-                MCQ.question_text == ArticleGeneratedQuestion.question["english"].as_string(),
-            )
-            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
+            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
+            .join(NewsArticle, NewsArticle.learning_item_id == ItemRelation.source_item_id)
             .outerjoin(NewsTheme, NewsTheme.id == NewsArticle.news_theme_id)
         )
 
