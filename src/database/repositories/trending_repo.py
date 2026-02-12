@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from src.database.models import NewsTheme, NewsArticle, MCQ, ItemRelation
+from src.database.models import NewsTheme, NewsArticle, MCQ, ItemRelation, ArticleGeneratedQuestion
 
 
 class TrendingRepository:
@@ -86,11 +86,14 @@ class TrendingRepository:
         ]
 
     def get_questions_for_theme(self, theme_id: UUID) -> List[dict]:
-        """Get all MCQs for articles belonging to a theme via item_relations."""
+        """Get all MCQs for articles belonging to a theme via article_generated_questions."""
         results = (
             self.db.query(MCQ, NewsArticle.title)
-            .join(ItemRelation, ItemRelation.target_item_id == MCQ.learning_item_id)
-            .join(NewsArticle, NewsArticle.learning_item_id == ItemRelation.source_item_id)
+            .join(
+                ArticleGeneratedQuestion,
+                MCQ.question_text == ArticleGeneratedQuestion.question["english"].as_string(),
+            )
+            .join(NewsArticle, NewsArticle.id == ArticleGeneratedQuestion.current_affair_id)
             .filter(NewsArticle.news_theme_id == theme_id)
             .order_by(MCQ.question_pattern, MCQ.created_at)
             .all()

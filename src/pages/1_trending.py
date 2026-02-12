@@ -10,7 +10,6 @@ from src.config import settings
 from src.utils.session_state import init_session_state, show_messages, set_success
 from src.database.connection import get_db
 from src.database.repositories.trending_repo import TrendingRepository
-from src.database.repositories.question_repo import QuestionRepository
 
 st.set_page_config(
     page_title=f"Trending - {settings.APP_NAME}",
@@ -22,11 +21,28 @@ init_session_state()
 show_messages()
 
 st.title("🔥 Trending Theme Selector")
-st.markdown("Select 5 themes to mark as trending for the app")
+
+with st.expander("📋 Workflow Guide", expanded=False):
+    st.markdown("""
+**Select 5 Trending Themes**
+- Use the date filter (sidebar) to view today's themes
+- Browse themes and check the ones most relevant for today
+- Select exactly **5 themes** and click **Save Trending Themes**
+- Click on a theme to preview its questions and summary
+""")
+
 st.markdown("---")
 
 # Sidebar - date filter
 st.sidebar.header("Filter by Article Date")
+
+# Sidebar - workflow guide
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📋 Quick Steps")
+st.sidebar.markdown("""
+1. Filter by **today's date**
+2. Select **5 trending themes** → Save
+""")
 
 today = datetime.now().date()
 
@@ -108,18 +124,6 @@ if "selected_trending" not in st.session_state:
 if "trending_detail_theme" not in st.session_state:
     st.session_state.trending_detail_theme = None
 
-# Initialize selected daily questions - pre-load existing daily selections
-if "selected_daily_questions" not in st.session_state:
-    st.session_state.selected_daily_questions = set()
-    try:
-        with get_db() as db:
-            question_repo = QuestionRepository(db)
-            st.session_state.selected_daily_questions = question_repo.get_daily_selected_ids()
-    except Exception:
-        st.session_state.selected_daily_questions = set()
-
-
-# Helper functions
 def get_english_text(content):
     if content is None:
         return ""
@@ -137,13 +141,6 @@ def toggle_trending(theme_id_str):
         st.session_state.selected_trending.discard(theme_id_str)
     else:
         st.session_state.selected_trending.add(theme_id_str)
-
-
-def toggle_daily_question(q_id):
-    if q_id in st.session_state.selected_daily_questions:
-        st.session_state.selected_daily_questions.discard(q_id)
-    else:
-        st.session_state.selected_daily_questions.add(q_id)
 
 
 try:
@@ -262,97 +259,27 @@ try:
                     if not questions:
                         st.info("No questions found for this theme")
                     else:
-                        # Daily question selection counter and buttons
-                        dq_selected = st.session_state.selected_daily_questions
-                        num_dq = len(dq_selected)
+                        for i, q in enumerate(questions):
+                            with st.container(border=True):
+                                st.caption(f"From: {q.get('article_title', 'Unknown')}")
+                                st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
 
-                        if num_dq == 0:
-                            st.info(f"**{num_dq}/10 daily questions selected** - Select up to 10")
-                        elif num_dq <= 10:
-                            st.success(f"**{num_dq}/10 daily questions selected** - Ready to save!")
-                        else:
-                            st.warning(f"**{num_dq}/10 daily questions selected** - Please deselect {num_dq - 10} question(s)")
+                                # Options with correct answer markers
+                                options = q.get("options")
+                                if options and isinstance(options, list):
+                                    for opt in options:
+                                        if isinstance(opt, dict):
+                                            opt_id = opt.get('id', '')
+                                            opt_text = opt.get('text', opt.get('value', str(opt)))
+                                            is_correct = str(opt_id) in [str(c) for c in (q.get("correct_option_ids") or [])]
+                                            marker = " ✓" if is_correct else ""
+                                            st.markdown(f"- {opt_text}{marker}")
 
-                        col_dq_save, col_dq_clear = st.columns([1, 1])
-                        with col_dq_save:
-                            if st.button(
-                                "Save Daily Questions",
-                                disabled=num_dq == 0 or num_dq > 10,
-                                use_container_width=True,
-                                type="primary",
-                                key="save_daily_q",
-                            ):
-                                with get_db() as db:
-                                    question_repo = QuestionRepository(db)
-                                    question_repo.save_daily_selected(
-                                        [UUID(qid) for qid in dq_selected]
-                                    )
-                                set_success(f"{num_dq} daily questions saved!")
-                                st.rerun()
-                        with col_dq_clear:
-                            if st.button("Clear Selection", use_container_width=True, key="clear_daily_q"):
-                                st.session_state.selected_daily_questions = set()
-                                st.rerun()
-
-                        # Group by question_pattern
-                        questions_by_pattern = {}
-                        for q in questions:
-                            pattern = q.get("question_pattern") or "Other"
-                            if pattern not in questions_by_pattern:
-                                questions_by_pattern[pattern] = []
-                            questions_by_pattern[pattern].append(q)
-
-                        for pattern, q_list in questions_by_pattern.items():
-                            with st.expander(f"**{pattern}** ({len(q_list)} questions)", expanded=True):
-                                for i, q in enumerate(q_list):
-                                    q_id = str(q["question_id"])
-                                    is_dq_selected = q_id in dq_selected
-
-                                    col_qcheck, col_qtext = st.columns([0.5, 9.5])
-                                    with col_qcheck:
-                                        st.checkbox(
-                                            "sel",
-                                            value=is_dq_selected,
-                                            key=f"dq_sel_{q_id}",
-                                            on_change=toggle_daily_question,
-                                            args=(q_id,),
-                                            label_visibility="collapsed",
-                                        )
-                                    with col_qtext:
-                                        st.caption(f"From: {q.get('article_title', 'Unknown')}")
-                                        st.markdown(f"**Q{i+1}.** {q.get('question_text', '')}")
-
-                                    # Metadata
-                                    meta_cols = st.columns(3)
-                                    with meta_cols[0]:
-                                        if q.get("question_pattern"):
-                                            st.caption(f"Pattern: {q['question_pattern']}")
-                                    with meta_cols[1]:
-                                        if q.get("is_multi_select"):
-                                            st.caption("Multi-select: Yes")
-                                    with meta_cols[2]:
-                                        if q.get("silly_mistake_prone"):
-                                            st.caption("Silly mistake prone")
-
-                                    # Options with correct answer markers
-                                    options = q.get("options")
-                                    if options and isinstance(options, list):
-                                        for opt in options:
-                                            if isinstance(opt, dict):
-                                                opt_id = opt.get('id', '')
-                                                opt_text = opt.get('text', opt.get('value', str(opt)))
-                                                is_correct = str(opt_id) in [str(c) for c in (q.get("correct_option_ids") or [])]
-                                                marker = " ✓" if is_correct else ""
-                                                st.markdown(f"- {opt_text}{marker}")
-
-                                    # Explanation
-                                    explanation = q.get("explanation")
-                                    if explanation:
-                                        with st.expander("Explanation", expanded=False):
-                                            st.markdown(get_english_text(explanation))
-
-                                    if i < len(q_list) - 1:
-                                        st.markdown("---")
+                                # Explanation
+                                explanation = q.get("explanation")
+                                if explanation:
+                                    with st.expander("Explanation", expanded=False):
+                                        st.markdown(get_english_text(explanation))
                 else:
                     st.info("Theme not found in current filter. Try changing the date range.")
             else:
